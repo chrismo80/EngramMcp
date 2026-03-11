@@ -1,7 +1,6 @@
 using EngramMcp.Core;
 using EngramMcp.Core.Abstractions;
 using EngramMcp.Features.Tools;
-using EngramMcp.Infrastructure.Memory;
 using Is.Assertions;
 using Xunit;
 
@@ -17,7 +16,7 @@ public sealed class MemoryToolTests
 
         await tool.ExecuteAsync("remember this", CancellationToken.None);
 
-        service.StoredName.Is("shortTerm");
+        service.StoredName.Is("short-term");
         service.StoredText.Is("remember this");
     }
 
@@ -40,7 +39,7 @@ public sealed class MemoryToolTests
 
         await tool.ExecuteAsync("remember this", CancellationToken.None);
 
-        service.StoredName.Is("longTerm");
+        service.StoredName.Is("long-term");
     }
 
     [Fact]
@@ -57,7 +56,7 @@ public sealed class MemoryToolTests
         };
 
         var service = new SpyMemoryService { RecallResult = expected };
-        var tool = new RecallTool(service, new CodeMemoryCatalog());
+        var tool = new RecallTool(service);
 
         var result = await tool.ExecuteAsync(CancellationToken.None);
 

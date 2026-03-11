@@ -7,7 +7,7 @@ namespace EngramMcp.Features.Tools;
 
 public sealed class StoreMediumTermTool(IMemoryService memoryService) : StoreMemoryToolBase(memoryService)
 {
-    private const string TargetMemoryName = "mediumTerm";
+    private const string TargetMemoryName = "medium-term";
 
     [McpServerTool(Name = "store_mediumterm", Title = "Store Medium-Term Memory")]
     [Description("Stores a plain-text memory in the medium-term memory section.")]

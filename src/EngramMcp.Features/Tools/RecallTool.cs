@@ -1,11 +1,12 @@
 using System.ComponentModel;
+using System.Text;
 using EngramMcp.Core;
 using EngramMcp.Core.Abstractions;
 using ModelContextProtocol.Server;
 
 namespace EngramMcp.Features.Tools;
 
-public sealed class RecallTool(IMemoryService memoryService, IMemoryCatalog memoryCatalog) : Tool
+public sealed class RecallTool(IMemoryService memoryService) : Tool
 {
     [McpServerTool(Name = "recall", Title = "Recall Memories", ReadOnly = true, Idempotent = true)]
     [Description("Loads all configured memory sections and returns them as markdown.")]
@@ -13,25 +14,21 @@ public sealed class RecallTool(IMemoryService memoryService, IMemoryCatalog memo
     {
         var document = await memoryService.RecallAsync(cancellationToken).ConfigureAwait(false);
 
-        return string.Join(Environment.NewLine + Environment.NewLine, string.Join(Environment.NewLine, memoryCatalog.Names.Select(name => FormatSection(name, GetEntries(document, name)))));
+        return FormatSection(document);
     }
-
-    private static IReadOnlyList<MemoryEntry> GetEntries(MemoryDocument document, string memoryName)
+    
+    private static string FormatSection(MemoryDocument document)
     {
-        return document.Memories.TryGetValue(memoryName, out var entries) ? entries : [];
-    }
+        var sb = new StringBuilder("# Memory").AppendLine();
 
-    private static string FormatSection(string title, IReadOnlyList<MemoryEntry> entries)
-    {
-        var lines = new List<string> { $"# {title}" };
-
-        if (entries.Count == 0)
+        foreach (var block in document.Memories.OrderBy(kvp => kvp.Key))
         {
-            lines.Add("- No entries");
-            return string.Join(Environment.NewLine, lines);
+            sb.AppendLine().AppendLine($"## {block.Key}");
+            
+            foreach(var memory in block.Value)
+                sb.AppendLine($"- {memory.Text}");
         }
 
-        lines.AddRange(entries.Select(entry => $"- {entry.Text}"));
-        return string.Join(Environment.NewLine, lines);
+        return sb.ToString();
     }
 }

@@ -7,7 +7,7 @@ namespace EngramMcp.Features.Tools;
 
 public sealed class StoreLongTermTool(IMemoryService memoryService) : StoreMemoryToolBase(memoryService)
 {
-    private const string TargetMemoryName = "longTerm";
+    private const string TargetMemoryName = "long-term";
 
     [McpServerTool(Name = "store_longterm", Title = "Store Long-Term Memory")]
     [Description("Stores a plain-text memory in the long-term memory section.")]
