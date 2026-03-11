@@ -5,7 +5,7 @@ using ModelContextProtocol.Server;
 
 namespace EngramMcp.Features.Tools;
 
-public sealed class StoreLongTermTool(IMemoryService memoryService) : StoreMemoryToolBase(memoryService)
+public sealed class StoreLongTermTool(IMemoryService memoryService) : Tool
 {
     private const string TargetMemoryName = "long-term";
 
@@ -16,6 +16,6 @@ public sealed class StoreLongTermTool(IMemoryService memoryService) : StoreMemor
         string text,
         CancellationToken cancellationToken)
     {
-        return MemoryService.StoreAsync(TargetMemoryName, text, cancellationToken);
+        return memoryService.StoreAsync(TargetMemoryName, text, cancellationToken);
     }
 }

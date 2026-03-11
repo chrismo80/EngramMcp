@@ -5,7 +5,7 @@ using ModelContextProtocol.Server;
 
 namespace EngramMcp.Features.Tools;
 
-public sealed class StoreShortTermTool(IMemoryService memoryService) : StoreMemoryToolBase(memoryService)
+public sealed class StoreShortTermTool(IMemoryService memoryService) : Tool
 {
     private const string TargetMemoryName = "short-term";
 
@@ -16,6 +16,6 @@ public sealed class StoreShortTermTool(IMemoryService memoryService) : StoreMemo
         string text,
         CancellationToken cancellationToken)
     {
-        return MemoryService.StoreAsync(TargetMemoryName, text, cancellationToken);
+        return memoryService.StoreAsync(TargetMemoryName, text, cancellationToken);
     }
 }
