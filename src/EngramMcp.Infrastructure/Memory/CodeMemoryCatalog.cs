@@ -7,8 +7,8 @@ public sealed class CodeMemoryCatalog : IMemoryCatalog
 {
     public IReadOnlyList<MemoryModel> Memories { get; } =
     [
-        new("long-term", 100),
-        new("medium-term", 25),
+        new("long-term", 40),
+        new("medium-term", 20),
         new("short-term", 10),
     ];
     

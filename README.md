@@ -56,44 +56,12 @@ Most agent sessions are stateless by default. EngramMcp solves that by providing
 | **Store Medium-Term**   | Save useful context that may change over time                     |
 | **Store Short-Term**    | Save the recent working state for fast next-session continuation  |
 
-## Public MCP API
-
-These tool descriptions are written as routing triggers. Use them to help an agent decide which tool to call based on the user's intent.
-
-### `recall`
-
-Call this tool at the very start of every session, before planning, answering, or coding, to load remembered context.
-
-Parameters:
-- none
-
-### `store_longterm`
-
-Use this tool for stable, remember-worthy facts about the human or yourself - such as identity, preferences, or interaction style - that should persist indefinitely. Store them immediately instead of relying on chat context.
-
-Parameters:
-- `text` (required): The memory to store.
-
-### `store_mediumterm`
-
-Use this tool for remember-worthy context that will likely help in future tasks or conversations but may change over time. Store it immediately instead of relying on chat context.
-
-Parameters:
-- `text` (required): The memory to store.
-
-### `store_shortterm`
-
-Use this tool for the recent working state you want available next session - such as completed tasks, milestones, touched files, and the active workspace area. Store it immediately instead of relying on chat context.
-
-Parameters:
-- `text` (required): The memory to store.
-
 ## Memory Model
 
 EngramMcp currently uses three memory sections with code-defined capacities:
 
-- `long-term` - 100 entries
-- `medium-term` - 25 entries
+- `long-term` - 40 entries
+- `medium-term` - 20 entries
 - `short-term` - 10 entries
 
 When a section exceeds its capacity, the oldest entries are discarded.
