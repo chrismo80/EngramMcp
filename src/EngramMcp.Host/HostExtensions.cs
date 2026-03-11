@@ -2,11 +2,9 @@ using Microsoft.Extensions.DependencyInjection;
 using ModelContextProtocol.Protocol;
 using EngramMcp.Features;
 using EngramMcp.Infrastructure;
-using Microsoft.Extensions.Hosting;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.Json.Serialization.Metadata;
-using Tool = EngramMcp.Features.Tool;
 
 namespace EngramMcp.Host;
 
@@ -17,7 +15,7 @@ public static class HostExtensions
         public void Compose(MemoryFileOptions options) => services
             .AddSingleton(options)
             .AddInfrastructure(options.FilePath)
-            .AddImplementations<Tool>()
+            .AddImplementations<Features.Tool>()
             .AddHostedService<StartupValidationService>()
             .AddMcpRuntime();
 
@@ -41,7 +39,7 @@ public static class HostExtensions
             });
 
             builder.WithStdioServerTransport();
-            builder.WithTools(FeatureExtensions.GetImplementations<Tool>(), serializerOptions);
+            builder.WithTools(FeatureExtensions.GetImplementations<Features.Tool>(), serializerOptions);
         }
     }
 }

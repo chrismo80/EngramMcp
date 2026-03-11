@@ -1,5 +1,4 @@
 using System.ComponentModel;
-using EngramMcp.Core;
 using EngramMcp.Core.Abstractions;
 using ModelContextProtocol.Server;
 
@@ -7,7 +6,7 @@ namespace EngramMcp.Features.Tools;
 
 public sealed class StoreShortTermTool(IMemoryService memoryService) : Tool
 {
-    private const string TargetMemoryName = "short-term";
+    private const string MemoryName = "short-term";
 
     [McpServerTool(Name = "store_shortterm", Title = "Store Short-Term Memory")]
     [Description("Use this tool when you finish work for the human and want to record the recent working state for fast next-session resume, including completed tasks, milestones, touched files, and the active area of the workspace.")]
@@ -16,6 +15,6 @@ public sealed class StoreShortTermTool(IMemoryService memoryService) : Tool
         string text,
         CancellationToken cancellationToken)
     {
-        return memoryService.StoreAsync(TargetMemoryName, text, cancellationToken);
+        return memoryService.StoreAsync(MemoryName, text, cancellationToken);
     }
 }

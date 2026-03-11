@@ -9,7 +9,7 @@ public sealed class MemoryBehaviorTests
     [Fact]
     public void Store_AppendsEntry_AndEvictsOldestWhenCapacityIsExceeded()
     {
-        var memory = new Core.Memory("shortTerm", 2);
+        var memory = new Core.MemoryModel("shortTerm", 2);
         var document = new MemoryDocument
         {
             Memories = new Dictionary<string, List<MemoryEntry>>(StringComparer.Ordinal)
@@ -33,7 +33,7 @@ public sealed class MemoryBehaviorTests
     [Fact]
     public void Read_CreatesMissingSection_AndReturnsEmptyList()
     {
-        var memory = new Core.Memory("mediumTerm", 3);
+        var memory = new Core.MemoryModel("mediumTerm", 3);
         var document = new MemoryDocument();
 
         var entries = memory.Read(document);

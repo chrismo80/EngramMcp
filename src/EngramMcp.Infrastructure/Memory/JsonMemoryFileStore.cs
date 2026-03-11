@@ -21,7 +21,7 @@ public sealed class JsonMemoryFileStore : IMemoryFileStore
         ArgumentNullException.ThrowIfNull(memoryCatalog);
 
         _filePath = ResolvePath(filePath);
-        _expectedMemoryNames = [.. memoryCatalog.GetAll().Select(memory => memory.Name)];
+        _expectedMemoryNames = [.. memoryCatalog.Memories.Select(memory => memory.Name)];
     }
 
     public Task EnsureInitializedAsync(CancellationToken cancellationToken = default)
@@ -33,14 +33,14 @@ public sealed class JsonMemoryFileStore : IMemoryFileStore
     {
         ArgumentNullException.ThrowIfNull(update);
 
-        return ExecuteExclusiveAsync(
-            async innerCancellationToken =>
+        return ExecuteExclusiveAsync(async innerCancellationToken =>
             {
                 var document = await LoadCoreAsync(innerCancellationToken).ConfigureAwait(false);
+                
                 update(document);
+                
                 await SaveCoreAsync(document, innerCancellationToken).ConfigureAwait(false);
-            },
-            cancellationToken);
+            }, cancellationToken);
     }
 
     public Task<MemoryDocument> LoadAsync(CancellationToken cancellationToken = default)
@@ -138,9 +138,7 @@ public sealed class JsonMemoryFileStore : IMemoryFileStore
             var directoryPath = Path.GetDirectoryName(_filePath);
 
             if (!string.IsNullOrEmpty(directoryPath))
-            {
                 Directory.CreateDirectory(directoryPath);
-            }
 
             var json = JsonSerializer.Serialize(document.Memories, SerializerOptions);
             await File.WriteAllTextAsync(_filePath, json, cancellationToken).ConfigureAwait(false);
@@ -192,9 +190,7 @@ public sealed class JsonMemoryFileStore : IMemoryFileStore
         var memories = new Dictionary<string, List<MemoryEntry>>(StringComparer.Ordinal);
 
         foreach (var memoryName in _expectedMemoryNames)
-        {
             memories[memoryName] = [];
-        }
 
         return new MemoryDocument { Memories = memories };
     }
@@ -202,9 +198,7 @@ public sealed class JsonMemoryFileStore : IMemoryFileStore
     private static string ResolvePath(string configuredPath)
     {
         if (string.IsNullOrWhiteSpace(configuredPath))
-        {
             throw new ArgumentException("The configured memory file path must not be empty or whitespace.", nameof(configuredPath));
-        }
 
         try
         {
@@ -222,17 +216,12 @@ public sealed class JsonMemoryFileStore : IMemoryFileStore
         var expectedNames = _expectedMemoryNames.OrderBy(name => name, StringComparer.Ordinal).ToArray();
 
         if (!actualNames.SequenceEqual(expectedNames, StringComparer.Ordinal))
-        {
-            throw new InvalidOperationException(
-                $"Memory file has invalid structure. Expected sections: {string.Join(", ", expectedNames)}.");
-        }
+            throw new InvalidOperationException($"Memory file has invalid structure. Expected sections: {string.Join(", ", expectedNames)}.");
 
         foreach (var memoryName in _expectedMemoryNames)
         {
             if (memories[memoryName] is null)
-            {
                 throw new InvalidOperationException($"Memory file has invalid structure. Section '{memoryName}' must be an array.");
-            }
         }
     }
 }

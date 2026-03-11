@@ -25,7 +25,7 @@ public sealed class MemoryService(IMemoryCatalog memoryCatalog, IMemoryFileStore
         var document = await fileStore.LoadAsync(cancellationToken).ConfigureAwait(false);
         var recalled = new Dictionary<string, List<MemoryEntry>>(StringComparer.Ordinal);
 
-        foreach (var memory in memoryCatalog.GetAll())
+        foreach (var memory in memoryCatalog.Memories)
         {
             recalled[memory.Name] = [.. memory.Read(document)];
         }
