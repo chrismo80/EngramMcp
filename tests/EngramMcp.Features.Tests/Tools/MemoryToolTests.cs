@@ -43,7 +43,7 @@ public sealed class MemoryToolTests
     }
 
     [Fact]
-    public async Task RecallTool_ReturnsRawStructuredDocument()
+    public async Task RecallTool_ReturnsMarkdownWithOrderedSectionsAndNoTimestamps()
     {
         var expected = new MemoryDocument
         {
@@ -51,7 +51,7 @@ public sealed class MemoryToolTests
             {
                 ["shortTerm"] = [new(new DateTime(2026, 3, 11, 12, 0, 0), "short")],
                 ["mediumTerm"] = [],
-                ["longTerm"] = []
+                ["longTerm"] = [new(new DateTime(2026, 3, 11, 13, 0, 0), "long")]
             }
         };
 
@@ -60,7 +60,12 @@ public sealed class MemoryToolTests
 
         var result = await tool.ExecuteAsync(CancellationToken.None);
 
-        ReferenceEquals(result, expected).IsTrue();
+        result.Is(
+            string.Join(
+                Environment.NewLine + Environment.NewLine,
+                "# Short-Term" + Environment.NewLine + "- short",
+                "# Medium-Term" + Environment.NewLine + "- No entries",
+                "# Long-Term" + Environment.NewLine + "- long"));
     }
 
     private sealed class SpyMemoryService : IMemoryService

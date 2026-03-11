@@ -14,6 +14,7 @@ public sealed class JsonMemoryFileStore : IMemoryFileStore
 
     private readonly string _filePath;
     private readonly string[] _expectedMemoryNames;
+    private readonly SemaphoreSlim _gate = new(1, 1);
 
     public JsonMemoryFileStore(string filePath, IMemoryCatalog memoryCatalog)
     {
@@ -23,7 +24,40 @@ public sealed class JsonMemoryFileStore : IMemoryFileStore
         _expectedMemoryNames = [.. memoryCatalog.GetAll().Select(memory => memory.Name)];
     }
 
-    public async Task EnsureInitializedAsync(CancellationToken cancellationToken = default)
+    public Task EnsureInitializedAsync(CancellationToken cancellationToken = default)
+    {
+        return ExecuteExclusiveAsync(EnsureInitializedCoreAsync, cancellationToken);
+    }
+
+    public Task UpdateAsync(Action<MemoryDocument> update, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(update);
+
+        return ExecuteExclusiveAsync(
+            async innerCancellationToken =>
+            {
+                var document = await LoadCoreAsync(innerCancellationToken).ConfigureAwait(false);
+                update(document);
+                await SaveCoreAsync(document, innerCancellationToken).ConfigureAwait(false);
+            },
+            cancellationToken);
+    }
+
+    public Task<MemoryDocument> LoadAsync(CancellationToken cancellationToken = default)
+    {
+        return ExecuteExclusiveAsync(LoadCoreAsync, cancellationToken);
+    }
+
+    public Task SaveAsync(MemoryDocument document, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(document);
+
+        return ExecuteExclusiveAsync(
+            innerCancellationToken => SaveCoreAsync(document, innerCancellationToken),
+            cancellationToken);
+    }
+
+    private async Task EnsureInitializedCoreAsync(CancellationToken cancellationToken)
     {
         var directoryPath = Path.GetDirectoryName(_filePath);
 
@@ -36,7 +70,7 @@ public sealed class JsonMemoryFileStore : IMemoryFileStore
 
             if (!File.Exists(_filePath))
             {
-                await SaveAsync(CreateDefaultDocument(), cancellationToken).ConfigureAwait(false);
+                await SaveCoreAsync(CreateDefaultDocument(), cancellationToken).ConfigureAwait(false);
                 return;
             }
 
@@ -58,8 +92,9 @@ public sealed class JsonMemoryFileStore : IMemoryFileStore
         }
     }
 
-    public async Task<MemoryDocument> LoadAsync(CancellationToken cancellationToken = default)
+    private async Task<MemoryDocument> LoadCoreAsync(CancellationToken cancellationToken)
     {
+        await EnsureInitializedCoreAsync(cancellationToken).ConfigureAwait(false);
         cancellationToken.ThrowIfCancellationRequested();
 
         try
@@ -94,14 +129,19 @@ public sealed class JsonMemoryFileStore : IMemoryFileStore
         }
     }
 
-    public async Task SaveAsync(MemoryDocument document, CancellationToken cancellationToken = default)
+    private async Task SaveCoreAsync(MemoryDocument document, CancellationToken cancellationToken)
     {
-        ArgumentNullException.ThrowIfNull(document);
-
         ValidateStructure(document.Memories);
 
         try
         {
+            var directoryPath = Path.GetDirectoryName(_filePath);
+
+            if (!string.IsNullOrEmpty(directoryPath))
+            {
+                Directory.CreateDirectory(directoryPath);
+            }
+
             var json = JsonSerializer.Serialize(document.Memories, SerializerOptions);
             await File.WriteAllTextAsync(_filePath, json, cancellationToken).ConfigureAwait(false);
         }
@@ -112,6 +152,38 @@ public sealed class JsonMemoryFileStore : IMemoryFileStore
         catch (IOException exception)
         {
             throw new InvalidOperationException($"Memory file '{_filePath}' could not be written.", exception);
+        }
+    }
+
+    private async Task ExecuteExclusiveAsync(Func<CancellationToken, Task> operation, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(operation);
+
+        await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+
+        try
+        {
+            await operation(cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
+    private async Task<T> ExecuteExclusiveAsync<T>(Func<CancellationToken, Task<T>> operation, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(operation);
+
+        await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+
+        try
+        {
+            return await operation(cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            _gate.Release();
         }
     }
 

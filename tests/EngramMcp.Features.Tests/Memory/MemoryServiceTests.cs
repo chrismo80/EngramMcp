@@ -49,6 +49,49 @@ public sealed class MemoryServiceTests
     }
 
     [Fact]
+    public async Task StoreAsync_SerializesConcurrentUpdatesAgainstJsonFileStore()
+    {
+        var rootPath = Path.Combine(Path.GetTempPath(), "EngramMcp.Tests", Guid.NewGuid().ToString("N"));
+
+        try
+        {
+            var filePath = Path.Combine(rootPath, "memory.json");
+            var catalog = new CodeMemoryCatalog();
+            var fileStore = new JsonMemoryFileStore(filePath, catalog);
+            var service = new MemoryService(catalog, fileStore);
+            var operations = Enumerable.Range(1, 10)
+                .SelectMany(index => new[]
+                {
+                    service.StoreAsync("shortTerm", $"short-{index}"),
+                    service.StoreAsync("mediumTerm", $"medium-{index}"),
+                    service.StoreAsync("longTerm", $"long-{index}")
+                })
+                .ToArray();
+
+            await Task.WhenAll(operations);
+
+            var recalled = await service.RecallAsync();
+
+            recalled.Memories["shortTerm"].Count.Is(10);
+            recalled.Memories["mediumTerm"].Count.Is(10);
+            recalled.Memories["longTerm"].Count.Is(10);
+            recalled.Memories["shortTerm"].Select(entry => entry.Text).OrderBy(text => text).ToArray()
+                .SequenceEqual(Enumerable.Range(1, 10).Select(index => $"short-{index}").OrderBy(text => text)).IsTrue();
+            recalled.Memories["mediumTerm"].Select(entry => entry.Text).OrderBy(text => text).ToArray()
+                .SequenceEqual(Enumerable.Range(1, 10).Select(index => $"medium-{index}").OrderBy(text => text)).IsTrue();
+            recalled.Memories["longTerm"].Select(entry => entry.Text).OrderBy(text => text).ToArray()
+                .SequenceEqual(Enumerable.Range(1, 10).Select(index => $"long-{index}").OrderBy(text => text)).IsTrue();
+        }
+        finally
+        {
+            if (Directory.Exists(rootPath))
+            {
+                Directory.Delete(rootPath, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
     public async Task RecallAsync_ReturnsConfiguredSectionsSeparatedByName()
     {
         var service = new MemoryService(new CodeMemoryCatalog(), new InMemoryFileStore(new MemoryDocument
@@ -73,6 +116,16 @@ public sealed class MemoryServiceTests
         public MemoryDocument Document { get; private set; } = document;
 
         public Task EnsureInitializedAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
+
+        public Task UpdateAsync(Action<MemoryDocument> update, CancellationToken cancellationToken = default)
+        {
+            ArgumentNullException.ThrowIfNull(update);
+
+            var document = Clone(Document);
+            update(document);
+            Document = document;
+            return Task.CompletedTask;
+        }
 
         public Task<MemoryDocument> LoadAsync(CancellationToken cancellationToken = default)
         {

@@ -69,6 +69,25 @@ public sealed class JsonMemoryFileStoreTests : IDisposable
         json.Contains("\"text\"", StringComparison.Ordinal).IsTrue();
     }
 
+    [Fact]
+    public async Task EnsureInitializedAsync_AndLoadAsync_AreSafeUnderConcurrentAccess()
+    {
+        var filePath = Path.Combine(_rootPath, "memory.json");
+        var store = CreateStore(filePath);
+        var operations = Enumerable.Range(0, 20)
+            .Select(index => index % 2 == 0
+                ? store.EnsureInitializedAsync()
+                : (Task)store.LoadAsync())
+            .ToArray();
+
+        await Task.WhenAll(operations);
+
+        var document = await store.LoadAsync();
+
+        File.Exists(filePath).IsTrue();
+        document.Memories.Keys.OrderBy(key => key).ToArray().SequenceEqual(["longTerm", "mediumTerm", "shortTerm"]).IsTrue();
+    }
+
     public void Dispose()
     {
         if (Directory.Exists(_rootPath))

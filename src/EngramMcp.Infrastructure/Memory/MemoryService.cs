@@ -13,12 +13,11 @@ public sealed class MemoryService(IMemoryCatalog memoryCatalog, IMemoryFileStore
             throw new ArgumentException("Memory text must not be null, empty, or whitespace.", nameof(text));
         }
 
-        var document = await fileStore.LoadAsync(cancellationToken).ConfigureAwait(false);
         var memory = memoryCatalog.GetByName(memoryName);
 
-        memory.Store(document, new MemoryEntry(CreateTimestamp(), text));
-
-        await fileStore.SaveAsync(document, cancellationToken).ConfigureAwait(false);
+        await fileStore.UpdateAsync(
+            document => memory.Store(document, new MemoryEntry(CreateTimestamp(), text)),
+            cancellationToken).ConfigureAwait(false);
     }
 
     public async Task<MemoryDocument> RecallAsync(CancellationToken cancellationToken = default)
