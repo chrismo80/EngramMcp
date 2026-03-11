@@ -9,9 +9,7 @@ public sealed class MemoryService(IMemoryCatalog memoryCatalog, IMemoryFileStore
     public async Task StoreAsync(string memoryName, string text, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(text))
-        {
             throw new ArgumentException("Memory text must not be null, empty, or whitespace.", nameof(text));
-        }
 
         var memory = memoryCatalog.GetByName(memoryName);
 

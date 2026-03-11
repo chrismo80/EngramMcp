@@ -1,6 +1,4 @@
 using System.ComponentModel;
-using System.Text;
-using EngramMcp.Core;
 using EngramMcp.Core.Abstractions;
 using ModelContextProtocol.Server;
 
@@ -14,21 +12,6 @@ public sealed class RecallTool(IMemoryService memoryService) : Tool
     {
         var document = await memoryService.RecallAsync(cancellationToken).ConfigureAwait(false);
 
-        return FormatSection(document);
-    }
-    
-    private static string FormatSection(MemoryDocument document)
-    {
-        var sb = new StringBuilder("# Memory").AppendLine();
-
-        foreach (var block in document.Memories.OrderBy(kvp => kvp.Key))
-        {
-            sb.AppendLine().AppendLine($"## {block.Key}");
-            
-            foreach(var memory in block.Value)
-                sb.AppendLine($"- {memory.Text}");
-        }
-
-        return sb.ToString();
+        return document.ToMarkdown();
     }
 }
