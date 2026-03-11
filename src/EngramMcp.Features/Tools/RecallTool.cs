@@ -5,7 +5,7 @@ using ModelContextProtocol.Server;
 
 namespace EngramMcp.Features.Tools;
 
-public sealed class RecallTool(IMemoryService memoryService) : Tool
+public sealed class RecallTool(IMemoryService memoryService, IMemoryCatalog memoryCatalog) : Tool
 {
     [McpServerTool(Name = "recall", Title = "Recall Memories", ReadOnly = true, Idempotent = true)]
     [Description("Loads all configured memory sections and returns them as markdown.")]
@@ -13,18 +13,12 @@ public sealed class RecallTool(IMemoryService memoryService) : Tool
     {
         var document = await memoryService.RecallAsync(cancellationToken).ConfigureAwait(false);
 
-        return string.Join(
-            Environment.NewLine + Environment.NewLine,
-            FormatSection("Short-Term", GetEntries(document, "shortTerm")),
-            FormatSection("Medium-Term", GetEntries(document, "mediumTerm")),
-            FormatSection("Long-Term", GetEntries(document, "longTerm")));
+        return string.Join(Environment.NewLine + Environment.NewLine, string.Join(Environment.NewLine, memoryCatalog.Names.Select(name => FormatSection(name, GetEntries(document, name)))));
     }
 
     private static IReadOnlyList<MemoryEntry> GetEntries(MemoryDocument document, string memoryName)
     {
-        return document.Memories.TryGetValue(memoryName, out var entries)
-            ? entries
-            : [];
+        return document.Memories.TryGetValue(memoryName, out var entries) ? entries : [];
     }
 
     private static string FormatSection(string title, IReadOnlyList<MemoryEntry> entries)

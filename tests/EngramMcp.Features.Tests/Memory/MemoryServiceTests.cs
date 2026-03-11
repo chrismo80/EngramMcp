@@ -15,13 +15,13 @@ public sealed class MemoryServiceTests
         {
             Memories = new Dictionary<string, List<MemoryEntry>>(StringComparer.Ordinal)
             {
-                ["shortTerm"] = [],
-                ["mediumTerm"] = [],
-                ["longTerm"] = []
+                ["short-term"] = [],
+                ["medium-term"] = [],
+                ["long-term"] = []
             }
         }));
 
-        await Assert.ThrowsAsync<ArgumentException>(() => service.StoreAsync("shortTerm", "   "));
+        await Assert.ThrowsAsync<ArgumentException>(() => service.StoreAsync("short-term", "   "));
     }
 
     [Fact]
@@ -31,21 +31,21 @@ public sealed class MemoryServiceTests
         {
             Memories = new Dictionary<string, List<MemoryEntry>>(StringComparer.Ordinal)
             {
-                ["shortTerm"] = [],
-                ["mediumTerm"] = [new(new DateTime(2026, 3, 11, 9, 0, 0), "existing")],
-                ["longTerm"] = []
+                ["short-term"] = [],
+                ["medium-term"] = [new(new DateTime(2026, 3, 11, 9, 0, 0), "existing")],
+                ["long-term"] = []
             }
         });
 
         var service = new MemoryService(new CodeMemoryCatalog(), fileStore);
 
-        await service.StoreAsync("shortTerm", "duplicate");
-        await service.StoreAsync("shortTerm", "duplicate");
+        await service.StoreAsync("short-term", "duplicate");
+        await service.StoreAsync("short-term", "duplicate");
 
-        fileStore.Document.Memories["shortTerm"].Count.Is(2);
-        fileStore.Document.Memories["shortTerm"][0].Text.Is("duplicate");
-        fileStore.Document.Memories["shortTerm"][1].Text.Is("duplicate");
-        fileStore.Document.Memories["mediumTerm"].Count.Is(1);
+        fileStore.Document.Memories["short-term"].Count.Is(2);
+        fileStore.Document.Memories["short-term"][0].Text.Is("duplicate");
+        fileStore.Document.Memories["short-term"][1].Text.Is("duplicate");
+        fileStore.Document.Memories["medium-term"].Count.Is(1);
     }
 
     [Fact]
@@ -62,9 +62,9 @@ public sealed class MemoryServiceTests
             var operations = Enumerable.Range(1, 10)
                 .SelectMany(index => new[]
                 {
-                    service.StoreAsync("shortTerm", $"short-{index}"),
-                    service.StoreAsync("mediumTerm", $"medium-{index}"),
-                    service.StoreAsync("longTerm", $"long-{index}")
+                    service.StoreAsync("short-term", $"short-{index}"),
+                    service.StoreAsync("medium-term", $"medium-{index}"),
+                    service.StoreAsync("long-term", $"long-{index}")
                 })
                 .ToArray();
 
@@ -72,14 +72,14 @@ public sealed class MemoryServiceTests
 
             var recalled = await service.RecallAsync();
 
-            recalled.Memories["shortTerm"].Count.Is(10);
-            recalled.Memories["mediumTerm"].Count.Is(10);
-            recalled.Memories["longTerm"].Count.Is(10);
-            recalled.Memories["shortTerm"].Select(entry => entry.Text).OrderBy(text => text).ToArray()
+            recalled.Memories["short-term"].Count.Is(10);
+            recalled.Memories["medium-term"].Count.Is(10);
+            recalled.Memories["long-term"].Count.Is(10);
+            recalled.Memories["short-term"].Select(entry => entry.Text).OrderBy(text => text).ToArray()
                 .SequenceEqual(Enumerable.Range(1, 10).Select(index => $"short-{index}").OrderBy(text => text)).IsTrue();
-            recalled.Memories["mediumTerm"].Select(entry => entry.Text).OrderBy(text => text).ToArray()
+            recalled.Memories["medium-term"].Select(entry => entry.Text).OrderBy(text => text).ToArray()
                 .SequenceEqual(Enumerable.Range(1, 10).Select(index => $"medium-{index}").OrderBy(text => text)).IsTrue();
-            recalled.Memories["longTerm"].Select(entry => entry.Text).OrderBy(text => text).ToArray()
+            recalled.Memories["long-term"].Select(entry => entry.Text).OrderBy(text => text).ToArray()
                 .SequenceEqual(Enumerable.Range(1, 10).Select(index => $"long-{index}").OrderBy(text => text)).IsTrue();
         }
         finally
@@ -98,17 +98,17 @@ public sealed class MemoryServiceTests
         {
             Memories = new Dictionary<string, List<MemoryEntry>>(StringComparer.Ordinal)
             {
-                ["shortTerm"] = [new(new DateTime(2026, 3, 11, 10, 0, 0), "short")],
-                ["mediumTerm"] = [],
-                ["longTerm"] = [new(new DateTime(2026, 3, 11, 11, 0, 0), "long")]
+                ["short-term"] = [new(new DateTime(2026, 3, 11, 10, 0, 0), "short")],
+                ["medium-term"] = [],
+                ["long-term"] = [new(new DateTime(2026, 3, 11, 11, 0, 0), "long")]
             }
         }));
 
         var recalled = await service.RecallAsync();
 
-        recalled.Memories.Keys.OrderBy(key => key).ToArray().SequenceEqual(["longTerm", "mediumTerm", "shortTerm"]).IsTrue();
-        recalled.Memories["shortTerm"][0].Text.Is("short");
-        recalled.Memories["longTerm"][0].Text.Is("long");
+        recalled.Memories.Keys.OrderBy(key => key).ToArray().SequenceEqual(["long-term", "medium-term", "short-term"]).IsTrue();
+        recalled.Memories["short-term"][0].Text.Is("short");
+        recalled.Memories["long-term"][0].Text.Is("long");
     }
 
     private sealed class InMemoryFileStore(MemoryDocument document) : IMemoryFileStore

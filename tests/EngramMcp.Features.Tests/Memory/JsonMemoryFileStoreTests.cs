@@ -24,10 +24,10 @@ public sealed class JsonMemoryFileStoreTests : IDisposable
         var document = await store.LoadAsync();
 
         File.Exists(filePath).IsTrue();
-        document.Memories.Keys.OrderBy(key => key).ToArray().SequenceEqual(["longTerm", "mediumTerm", "shortTerm"]).IsTrue();
-        document.Memories["shortTerm"].Count.Is(0);
-        document.Memories["mediumTerm"].Count.Is(0);
-        document.Memories["longTerm"].Count.Is(0);
+        document.Memories.Keys.OrderBy(key => key).ToArray().SequenceEqual(["long-term", "medium-term", "short-term"]).IsTrue();
+        document.Memories["short-term"].Count.Is(0);
+        document.Memories["medium-term"].Count.Is(0);
+        document.Memories["long-term"].Count.Is(0);
     }
 
     [Fact]
@@ -54,16 +54,16 @@ public sealed class JsonMemoryFileStoreTests : IDisposable
         {
             Memories = new Dictionary<string, List<MemoryEntry>>(StringComparer.Ordinal)
             {
-                ["shortTerm"] = [new(new DateTime(2026, 3, 11, 15, 4, 5), "hello")],
-                ["mediumTerm"] = [],
-                ["longTerm"] = []
+                ["short-term"] = [new(new DateTime(2026, 3, 11, 15, 4, 5), "hello")],
+                ["medium-term"] = [],
+                ["long-term"] = []
             }
         };
 
         await store.SaveAsync(document);
 
         var json = await File.ReadAllTextAsync(filePath);
-        json.Contains("\"shortTerm\"", StringComparison.Ordinal).IsTrue();
+        json.Contains("\"short-term\"", StringComparison.Ordinal).IsTrue();
         json.Contains("\"memories\"", StringComparison.Ordinal).IsFalse();
         json.Contains("\"timestamp\"", StringComparison.Ordinal).IsTrue();
         json.Contains("\"text\"", StringComparison.Ordinal).IsTrue();
@@ -85,7 +85,7 @@ public sealed class JsonMemoryFileStoreTests : IDisposable
         var document = await store.LoadAsync();
 
         File.Exists(filePath).IsTrue();
-        document.Memories.Keys.OrderBy(key => key).ToArray().SequenceEqual(["longTerm", "mediumTerm", "shortTerm"]).IsTrue();
+        document.Memories.Keys.OrderBy(key => key).ToArray().SequenceEqual(["long-term", "medium-term", "short-term"]).IsTrue();
     }
 
     public void Dispose()

@@ -1,6 +1,7 @@
 using EngramMcp.Core;
 using EngramMcp.Core.Abstractions;
 using EngramMcp.Features.Tools;
+using EngramMcp.Infrastructure.Memory;
 using Is.Assertions;
 using Xunit;
 
@@ -49,23 +50,18 @@ public sealed class MemoryToolTests
         {
             Memories = new Dictionary<string, List<MemoryEntry>>(StringComparer.Ordinal)
             {
-                ["shortTerm"] = [new(new DateTime(2026, 3, 11, 12, 0, 0), "short")],
-                ["mediumTerm"] = [],
-                ["longTerm"] = [new(new DateTime(2026, 3, 11, 13, 0, 0), "long")]
+                ["long-term"] = [new(new DateTime(2026, 3, 11, 13, 0, 0), "long")],
+                ["medium-term"] = [],
+                ["short-term"] = [new(new DateTime(2026, 3, 11, 12, 0, 0), "short")],
             }
         };
 
         var service = new SpyMemoryService { RecallResult = expected };
-        var tool = new RecallTool(service);
+        var tool = new RecallTool(service, new CodeMemoryCatalog());
 
         var result = await tool.ExecuteAsync(CancellationToken.None);
 
-        result.Is(
-            string.Join(
-                Environment.NewLine + Environment.NewLine,
-                "# Short-Term" + Environment.NewLine + "- short",
-                "# Medium-Term" + Environment.NewLine + "- No entries",
-                "# Long-Term" + Environment.NewLine + "- long"));
+        result.Is($"# long-term{Environment.NewLine}- long{Environment.NewLine}# medium-term{Environment.NewLine}- No entries{Environment.NewLine}# short-term{Environment.NewLine}- short");
     }
 
     private sealed class SpyMemoryService : IMemoryService
