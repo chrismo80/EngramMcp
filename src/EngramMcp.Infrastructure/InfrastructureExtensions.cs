@@ -1,3 +1,5 @@
+using EngramMcp.Core.Abstractions;
+using EngramMcp.Infrastructure.Memory;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace EngramMcp.Infrastructure;
@@ -6,7 +8,10 @@ public static class InfrastructureExtensions
 {
     extension(IServiceCollection services)
     {
-	    public IServiceCollection AddInfrastructure() => services;
+	    public IServiceCollection AddInfrastructure(string memoryFilePath) => services
+	        .AddSingleton<IMemoryCatalog, CodeMemoryCatalog>()
+	        .AddSingleton<IMemoryFileStore>(_ => new JsonMemoryFileStore(memoryFilePath))
+	        .AddSingleton<IMemoryService, MemoryService>();
 
 	    public IServiceCollection AddInterfacesOf<T>() where T : class
 	    {

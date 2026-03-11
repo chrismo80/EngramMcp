@@ -27,16 +27,16 @@
         <PackageId>EngramMcp</PackageId>
         <PackAsTool>true</PackAsTool>
         <ToolCommandName>EngramMcp</ToolCommandName>
-        <Version>0.6.1</Version>
+        <Version>0.1.0</Version>
         <Authors>chrismo80</Authors>
-        <Description>Roslyn-based MCP server for semantic C# analysis.</Description>
+        <Description>MCP server for persistant memory.</Description>
         <PackageLicenseExpression>MIT</PackageLicenseExpression>
         <PackageProjectUrl>https://github.com/chrismo80/EngramMcp</PackageProjectUrl>
         <RepositoryUrl>https://github.com/chrismo80/EngramMcp</RepositoryUrl>
         <PackageOutputPath>../../.nupkg</PackageOutputPath>
         <PackageIcon>icon.png</PackageIcon>
         <PackageReadmeFile>README.md</PackageReadmeFile>
-        <PackageTags>dotnet8;mcp;agent;ai;vibe;coding;C#;grep;glob</PackageTags>
+        <PackageTags>dotnet8;mcp;agent;ai;vibe;coding;memory</PackageTags>
     </PropertyGroup>
     <ItemGroup>
         <None Include="..\..\assets\icon.png"

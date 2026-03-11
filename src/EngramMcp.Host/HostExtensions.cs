@@ -2,6 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 using ModelContextProtocol.Protocol;
 using EngramMcp.Features;
 using EngramMcp.Infrastructure;
+using Microsoft.Extensions.Hosting;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.Json.Serialization.Metadata;
@@ -13,9 +14,11 @@ public static class HostExtensions
 {
     extension(IServiceCollection services)
     {
-        public void Compose() => services
-            .AddInfrastructure()
+        public void Compose(MemoryFileOptions options) => services
+            .AddSingleton(options)
+            .AddInfrastructure(options.FilePath)
             .AddImplementations<Tool>()
+            .AddHostedService<StartupValidationService>()
             .AddMcpRuntime();
 
         private void AddMcpRuntime()
