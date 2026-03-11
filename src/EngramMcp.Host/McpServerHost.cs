@@ -24,8 +24,45 @@ public static class McpServerHost
 
     private static MemoryFileOptions ParseOptions(string[] args)
     {
-        // TODO(code-monkey): Replace this placeholder parser with robust CLI handling for `--file`.
-        // Expected behavior: require `--file <path>` and fail clearly when the argument is missing or invalid.
-        throw new NotImplementedException();
+        ArgumentNullException.ThrowIfNull(args);
+
+        string? filePath = null;
+
+        for (var index = 0; index < args.Length; index++)
+        {
+            var argument = args[index];
+
+            if (!string.Equals(argument, "--file", StringComparison.Ordinal))
+            {
+                throw new ArgumentException($"Unknown argument '{argument}'. Expected '--file <path>'.", nameof(args));
+            }
+
+            if (filePath is not null)
+            {
+                throw new ArgumentException("The '--file' option may only be specified once.", nameof(args));
+            }
+
+            if (index + 1 >= args.Length)
+            {
+                throw new ArgumentException("Missing value for '--file'. Expected '--file <path>'.", nameof(args));
+            }
+
+            filePath = args[++index];
+
+            if (string.IsNullOrWhiteSpace(filePath))
+            {
+                throw new ArgumentException("The '--file' value must not be empty or whitespace.", nameof(args));
+            }
+        }
+
+        if (filePath is null)
+        {
+            throw new ArgumentException("Missing required '--file <path>' argument.", nameof(args));
+        }
+
+        return new MemoryFileOptions
+        {
+            FilePath = filePath
+        };
     }
 }

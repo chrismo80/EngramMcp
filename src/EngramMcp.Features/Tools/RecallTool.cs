@@ -11,7 +11,6 @@ public sealed class RecallTool(IMemoryService memoryService) : Tool
     [Description("Loads and returns the raw content of all configured memory sections.")]
     public Task<MemoryDocument> ExecuteAsync(CancellationToken cancellationToken)
     {
-        // TODO(code-monkey): Delegate to the shared recall workflow and return the raw structured response.
-        throw new NotImplementedException();
+        return memoryService.RecallAsync(cancellationToken);
     }
 }

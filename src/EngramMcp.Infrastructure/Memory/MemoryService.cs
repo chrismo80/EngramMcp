@@ -6,17 +6,36 @@ namespace EngramMcp.Infrastructure.Memory;
 public sealed class MemoryService(IMemoryCatalog memoryCatalog, IMemoryFileStore fileStore)
     : IMemoryService
 {
-    public Task StoreAsync(string memoryName, string text, CancellationToken cancellationToken = default)
+    public async Task StoreAsync(string memoryName, string text, CancellationToken cancellationToken = default)
     {
-        // TODO(code-monkey): Reject null/empty/whitespace text, load the document, resolve the target
-        // memory from the catalog by name, and delegate storing/FIFO behavior to that memory instance.
-        throw new NotImplementedException();
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            throw new ArgumentException("Memory text must not be null, empty, or whitespace.", nameof(text));
+        }
+
+        var document = await fileStore.LoadAsync(cancellationToken).ConfigureAwait(false);
+        var memory = memoryCatalog.GetByName(memoryName);
+
+        memory.Store(document, new MemoryEntry(CreateTimestamp(), text));
+
+        await fileStore.SaveAsync(document, cancellationToken).ConfigureAwait(false);
     }
 
-    public Task<MemoryDocument> RecallAsync(CancellationToken cancellationToken = default)
+    public async Task<MemoryDocument> RecallAsync(CancellationToken cancellationToken = default)
     {
-        // TODO(code-monkey): Load the document, iterate over all configured memories from the catalog,
-        // call Read on each memory, and return a raw name-keyed memory document.
-        throw new NotImplementedException();
+        var document = await fileStore.LoadAsync(cancellationToken).ConfigureAwait(false);
+        var recalled = new Dictionary<string, List<MemoryEntry>>(StringComparer.Ordinal);
+
+        foreach (var memory in memoryCatalog.GetAll())
+        {
+            recalled[memory.Name] = [.. memory.Read(document)];
+        }
+
+        return new MemoryDocument { Memories = recalled };
+    }
+
+    private static DateTime CreateTimestamp()
+    {
+        return DateTime.SpecifyKind(DateTime.Now, DateTimeKind.Unspecified);
     }
 }

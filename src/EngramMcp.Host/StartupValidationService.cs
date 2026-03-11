@@ -5,11 +5,10 @@ namespace EngramMcp.Host;
 
 public sealed class StartupValidationService(IMemoryFileStore memoryFileStore) : IHostedService
 {
-    public Task StartAsync(CancellationToken cancellationToken)
+    public async Task StartAsync(CancellationToken cancellationToken)
     {
-        // TODO(code-monkey): Trigger startup-time initialization and validation of the configured memory file
-        // so malformed JSON or invalid paths fail before the server starts accepting tool calls.
-        throw new NotImplementedException();
+        await memoryFileStore.EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
+        _ = await memoryFileStore.LoadAsync(cancellationToken).ConfigureAwait(false);
     }
 
     public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;

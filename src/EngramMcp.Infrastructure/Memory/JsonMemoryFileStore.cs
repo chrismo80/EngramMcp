@@ -1,28 +1,166 @@
 using EngramMcp.Core;
 using EngramMcp.Core.Abstractions;
+using System.Text.Json;
 
 namespace EngramMcp.Infrastructure.Memory;
 
-public sealed class JsonMemoryFileStore(string filePath) : IMemoryFileStore
+public sealed class JsonMemoryFileStore : IMemoryFileStore
 {
-    public Task EnsureInitializedAsync(CancellationToken cancellationToken = default)
+    private static readonly JsonSerializerOptions SerializerOptions = new()
     {
-        // TODO(code-monkey): Validate the configured --file path, create parent directories if needed,
-        // create the memory file when missing, and fail clearly on invalid or inaccessible locations.
-        throw new NotImplementedException();
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        WriteIndented = true
+    };
+
+    private readonly string _filePath;
+    private readonly string[] _expectedMemoryNames;
+
+    public JsonMemoryFileStore(string filePath, IMemoryCatalog memoryCatalog)
+    {
+        ArgumentNullException.ThrowIfNull(memoryCatalog);
+
+        _filePath = ResolvePath(filePath);
+        _expectedMemoryNames = [.. memoryCatalog.GetAll().Select(memory => memory.Name)];
     }
 
-    public Task<MemoryDocument> LoadAsync(CancellationToken cancellationToken = default)
+    public async Task EnsureInitializedAsync(CancellationToken cancellationToken = default)
     {
-        // TODO(code-monkey): Load and deserialize the JSON memory document, validate that the
-        // expected top-level sections exist, and fail loudly on malformed JSON or invalid structure.
-        throw new NotImplementedException();
+        var directoryPath = Path.GetDirectoryName(_filePath);
+
+        try
+        {
+            if (!string.IsNullOrEmpty(directoryPath))
+            {
+                Directory.CreateDirectory(directoryPath);
+            }
+
+            if (!File.Exists(_filePath))
+            {
+                await SaveAsync(CreateDefaultDocument(), cancellationToken).ConfigureAwait(false);
+                return;
+            }
+
+            await using var stream = new FileStream(
+                _filePath,
+                FileMode.Open,
+                FileAccess.ReadWrite,
+                FileShare.None,
+                bufferSize: 4096,
+                useAsync: true);
+        }
+        catch (UnauthorizedAccessException exception)
+        {
+            throw new InvalidOperationException($"Memory file path '{_filePath}' is inaccessible.", exception);
+        }
+        catch (IOException exception)
+        {
+            throw new InvalidOperationException($"Memory file path '{_filePath}' could not be initialized.", exception);
+        }
     }
 
-    public Task SaveAsync(MemoryDocument document, CancellationToken cancellationToken = default)
+    public async Task<MemoryDocument> LoadAsync(CancellationToken cancellationToken = default)
     {
-        // TODO(code-monkey): Persist the full memory document back to the configured file using
-        // the agreed human-readable JSON shape.
-        throw new NotImplementedException();
+        cancellationToken.ThrowIfCancellationRequested();
+
+        try
+        {
+            var json = await File.ReadAllTextAsync(_filePath, cancellationToken).ConfigureAwait(false);
+            Dictionary<string, List<MemoryEntry>>? memories;
+
+            try
+            {
+                memories = JsonSerializer.Deserialize<Dictionary<string, List<MemoryEntry>>>(json, SerializerOptions);
+            }
+            catch (JsonException exception)
+            {
+                throw new InvalidOperationException($"Memory file '{_filePath}' contains malformed JSON.", exception);
+            }
+
+            if (memories is null)
+            {
+                throw new InvalidOperationException($"Memory file '{_filePath}' contains an invalid JSON document.");
+            }
+
+            ValidateStructure(memories);
+            return new MemoryDocument { Memories = new Dictionary<string, List<MemoryEntry>>(memories, StringComparer.Ordinal) };
+        }
+        catch (UnauthorizedAccessException exception)
+        {
+            throw new InvalidOperationException($"Memory file '{_filePath}' is inaccessible.", exception);
+        }
+        catch (IOException exception)
+        {
+            throw new InvalidOperationException($"Memory file '{_filePath}' could not be read.", exception);
+        }
+    }
+
+    public async Task SaveAsync(MemoryDocument document, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(document);
+
+        ValidateStructure(document.Memories);
+
+        try
+        {
+            var json = JsonSerializer.Serialize(document.Memories, SerializerOptions);
+            await File.WriteAllTextAsync(_filePath, json, cancellationToken).ConfigureAwait(false);
+        }
+        catch (UnauthorizedAccessException exception)
+        {
+            throw new InvalidOperationException($"Memory file '{_filePath}' is inaccessible.", exception);
+        }
+        catch (IOException exception)
+        {
+            throw new InvalidOperationException($"Memory file '{_filePath}' could not be written.", exception);
+        }
+    }
+
+    private MemoryDocument CreateDefaultDocument()
+    {
+        var memories = new Dictionary<string, List<MemoryEntry>>(StringComparer.Ordinal);
+
+        foreach (var memoryName in _expectedMemoryNames)
+        {
+            memories[memoryName] = [];
+        }
+
+        return new MemoryDocument { Memories = memories };
+    }
+
+    private static string ResolvePath(string configuredPath)
+    {
+        if (string.IsNullOrWhiteSpace(configuredPath))
+        {
+            throw new ArgumentException("The configured memory file path must not be empty or whitespace.", nameof(configuredPath));
+        }
+
+        try
+        {
+            return Path.GetFullPath(configuredPath);
+        }
+        catch (Exception exception) when (exception is ArgumentException or NotSupportedException or PathTooLongException)
+        {
+            throw new InvalidOperationException($"Memory file path '{configuredPath}' is invalid.", exception);
+        }
+    }
+
+    private void ValidateStructure(IReadOnlyDictionary<string, List<MemoryEntry>> memories)
+    {
+        var actualNames = memories.Keys.OrderBy(name => name, StringComparer.Ordinal).ToArray();
+        var expectedNames = _expectedMemoryNames.OrderBy(name => name, StringComparer.Ordinal).ToArray();
+
+        if (!actualNames.SequenceEqual(expectedNames, StringComparer.Ordinal))
+        {
+            throw new InvalidOperationException(
+                $"Memory file has invalid structure. Expected sections: {string.Join(", ", expectedNames)}.");
+        }
+
+        foreach (var memoryName in _expectedMemoryNames)
+        {
+            if (memories[memoryName] is null)
+            {
+                throw new InvalidOperationException($"Memory file has invalid structure. Section '{memoryName}' must be an array.");
+            }
+        }
     }
 }

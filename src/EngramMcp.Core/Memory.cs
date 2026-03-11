@@ -8,15 +8,32 @@ public sealed class Memory(string name, int capacity)
 
     public void Store(MemoryDocument document, MemoryEntry entry)
     {
-        // TODO(code-monkey): Append the entry to this memory's list in the document and enforce
-        // FIFO eviction according to Capacity.
-        throw new NotImplementedException();
+        ArgumentNullException.ThrowIfNull(document);
+
+        var entries = GetEntries(document);
+        entries.Add(entry);
+
+        while (entries.Count > Capacity)
+        {
+            entries.RemoveAt(0);
+        }
     }
 
     public IReadOnlyList<MemoryEntry> Read(MemoryDocument document)
     {
-        // TODO(code-monkey): Return the entries for this memory name from the document, preserving
-        // their current order and treating the memory name as the lookup key.
-        throw new NotImplementedException();
+        ArgumentNullException.ThrowIfNull(document);
+        return GetEntries(document);
+    }
+
+    private List<MemoryEntry> GetEntries(MemoryDocument document)
+    {
+        if (document.Memories.TryGetValue(Name, out var entries))
+        {
+            return entries;
+        }
+
+        entries = [];
+        document.Memories[Name] = entries;
+        return entries;
     }
 }

@@ -16,7 +16,6 @@ public sealed class StoreMediumTermTool(IMemoryService memoryService) : StoreMem
         string text,
         CancellationToken cancellationToken)
     {
-        // TODO(code-monkey): Delegate to the shared memory service using TargetMemoryName.
-        throw new NotImplementedException();
+        return MemoryService.StoreAsync(TargetMemoryName, text, cancellationToken);
     }
 }
