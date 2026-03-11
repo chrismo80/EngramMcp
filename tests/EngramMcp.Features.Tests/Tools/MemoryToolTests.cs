@@ -28,7 +28,7 @@ public sealed class MemoryToolTests
 
         await tool.ExecuteAsync("remember this", CancellationToken.None);
 
-        service.StoredName.Is("mediumTerm");
+        service.StoredName.Is("medium-term");
     }
 
     [Fact]
@@ -60,7 +60,7 @@ public sealed class MemoryToolTests
 
         var result = await tool.ExecuteAsync(CancellationToken.None);
 
-        result.Is($"# long-term{Environment.NewLine}- long{Environment.NewLine}# medium-term{Environment.NewLine}- No entries{Environment.NewLine}# short-term{Environment.NewLine}- short");
+        result.Is($"# Memory\n\n## long-term\n- long\n\n## medium-term\n\n## short-term\n- short\n".Replace("\n", Environment.NewLine));
     }
 
     private sealed class SpyMemoryService : IMemoryService
