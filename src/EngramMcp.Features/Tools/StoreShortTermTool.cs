@@ -9,7 +9,7 @@ public sealed class StoreShortTermTool(IMemoryService memoryService) : Tool
     private const string MemoryName = "short-term";
 
     [McpServerTool(Name = "store_shortterm", Title = "Store Short-Term Memory")]
-    [Description("Store this when you learn something that defines who the user or you fundamentally are: name, identity, character, values, and vibe. The soul of the relationship. These facts rarely change.")]
+    [Description("Store this when you reach a meaningful checkpoint – a completed task or a clear point to resume from. What did we just do, and where do we continue?")]
     public Task ExecuteAsync(
         [Description("The memory to store.")]
         string text,
