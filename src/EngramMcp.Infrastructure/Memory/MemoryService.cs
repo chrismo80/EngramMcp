@@ -3,7 +3,7 @@ using EngramMcp.Core.Abstractions;
 
 namespace EngramMcp.Infrastructure.Memory;
 
-public sealed class MemoryService(IMemoryCatalog memoryCatalog, IMemoryFileStore fileStore)
+public sealed class MemoryService(IMemoryCatalog memoryCatalog, IMemoryStore memoryStore)
     : IMemoryService
 {
     public async Task StoreAsync(string memoryName, string text, CancellationToken cancellationToken = default)
@@ -13,21 +13,21 @@ public sealed class MemoryService(IMemoryCatalog memoryCatalog, IMemoryFileStore
 
         var memory = memoryCatalog.GetByName(memoryName);
 
-        await fileStore
-            .UpdateAsync(document => memory.Store(document, new MemoryEntry(CreateTimestamp(), text)), cancellationToken)
+        await memoryStore
+            .UpdateAsync(container => memory.Store(container, new MemoryEntry(CreateTimestamp(), text)), cancellationToken)
             .ConfigureAwait(false);
     }
 
-    public async Task<MemoryDocument> RecallAsync(CancellationToken cancellationToken = default)
+    public async Task<MemoryContainer> RecallAsync(CancellationToken cancellationToken = default)
     {
-        var document = await fileStore.LoadAsync(cancellationToken).ConfigureAwait(false);
+        var container = await memoryStore.LoadAsync(cancellationToken).ConfigureAwait(false);
         
         var recalled = new Dictionary<string, List<MemoryEntry>>(StringComparer.Ordinal);
 
         foreach (var memory in memoryCatalog.Memories)
-            recalled[memory.Name] = [.. memory.Read(document)];
+            recalled[memory.Name] = [.. memory.Read(container)];
 
-        return new MemoryDocument { Memories = recalled };
+        return new MemoryContainer { Memories = recalled };
     }
 
     private static DateTime CreateTimestamp() => DateTime.SpecifyKind(DateTime.Now, DateTimeKind.Local);

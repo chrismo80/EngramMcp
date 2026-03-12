@@ -7,7 +7,7 @@ namespace EngramMcp.Features;
 
 public static class FeatureExtensions
 {
-    extension(MemoryDocument document)
+    extension(MemoryContainer container)
     {
         internal string ToMarkdown()
         {
@@ -17,7 +17,7 @@ public static class FeatureExtensions
             sb.AppendLine("Learn naturally — you're helping a person, not building a dossier.");
             sb.AppendLine("Store them proactively and immediately.");
 
-            foreach (var block in document.Memories.OrderBy(kvp => kvp.Key))
+            foreach (var block in container.Memories.OrderBy(kvp => kvp.Key))
             {
                 sb.AppendLine().AppendLine($"## {block.Key}");
 

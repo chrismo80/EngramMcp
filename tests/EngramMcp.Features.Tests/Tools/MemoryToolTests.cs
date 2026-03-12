@@ -45,7 +45,7 @@ public sealed class MemoryToolTests
     [Fact]
     public async Task RecallTool_ReturnsMarkdownWithOrderedSectionsAndNoTimestamps()
     {
-        var expected = new MemoryDocument
+        var expected = new MemoryContainer
         {
             Memories = new Dictionary<string, List<MemoryEntry>>(StringComparer.Ordinal)
             {
@@ -69,7 +69,7 @@ public sealed class MemoryToolTests
 
         public string? StoredText { get; private set; }
 
-        public MemoryDocument RecallResult { get; init; } = new();
+        public MemoryContainer RecallResult { get; init; } = new();
 
         public Task StoreAsync(string memoryName, string text, CancellationToken cancellationToken = default)
         {
@@ -78,7 +78,7 @@ public sealed class MemoryToolTests
             return Task.CompletedTask;
         }
 
-        public Task<MemoryDocument> RecallAsync(CancellationToken cancellationToken = default)
+        public Task<MemoryContainer> RecallAsync(CancellationToken cancellationToken = default)
         {
             return Task.FromResult(RecallResult);
         }

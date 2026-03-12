@@ -4,7 +4,7 @@ using System.Text.Json;
 
 namespace EngramMcp.Infrastructure.Memory;
 
-public sealed class JsonMemoryFileStore : IMemoryFileStore
+public sealed class JsonMemoryStore : IMemoryStore
 {
     private static readonly JsonSerializerOptions SerializerOptions = new()
     {
@@ -16,7 +16,7 @@ public sealed class JsonMemoryFileStore : IMemoryFileStore
     private readonly string[] _expectedMemoryNames;
     private readonly SemaphoreSlim _gate = new(1, 1);
 
-    public JsonMemoryFileStore(string filePath, IMemoryCatalog memoryCatalog)
+    public JsonMemoryStore(string filePath, IMemoryCatalog memoryCatalog)
     {
         ArgumentNullException.ThrowIfNull(memoryCatalog);
 
@@ -29,31 +29,31 @@ public sealed class JsonMemoryFileStore : IMemoryFileStore
         return ExecuteExclusiveAsync(EnsureInitializedCoreAsync, cancellationToken);
     }
 
-    public Task UpdateAsync(Action<MemoryDocument> update, CancellationToken cancellationToken = default)
+    public Task UpdateAsync(Action<MemoryContainer> update, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(update);
 
         return ExecuteExclusiveAsync(async innerCancellationToken =>
             {
-                var document = await LoadCoreAsync(innerCancellationToken).ConfigureAwait(false);
+                var container = await LoadCoreAsync(innerCancellationToken).ConfigureAwait(false);
                 
-                update(document);
+                update(container);
                 
-                await SaveCoreAsync(document, innerCancellationToken).ConfigureAwait(false);
+                await SaveCoreAsync(container, innerCancellationToken).ConfigureAwait(false);
             }, cancellationToken);
     }
 
-    public Task<MemoryDocument> LoadAsync(CancellationToken cancellationToken = default)
+    public Task<MemoryContainer> LoadAsync(CancellationToken cancellationToken = default)
     {
         return ExecuteExclusiveAsync(LoadCoreAsync, cancellationToken);
     }
 
-    public Task SaveAsync(MemoryDocument document, CancellationToken cancellationToken = default)
+    public Task SaveAsync(MemoryContainer container, CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(document);
+        ArgumentNullException.ThrowIfNull(container);
 
         return ExecuteExclusiveAsync(
-            innerCancellationToken => SaveCoreAsync(document, innerCancellationToken),
+            innerCancellationToken => SaveCoreAsync(container, innerCancellationToken),
             cancellationToken);
     }
 
@@ -68,7 +68,7 @@ public sealed class JsonMemoryFileStore : IMemoryFileStore
 
             if (!File.Exists(_filePath))
             {
-                await SaveCoreAsync(CreateDefaultDocument(), cancellationToken).ConfigureAwait(false);
+                await SaveCoreAsync(CreateDefaultContainer(), cancellationToken).ConfigureAwait(false);
                 return;
             }
 
@@ -84,7 +84,7 @@ public sealed class JsonMemoryFileStore : IMemoryFileStore
         }
     }
 
-    private async Task<MemoryDocument> LoadCoreAsync(CancellationToken cancellationToken)
+    private async Task<MemoryContainer> LoadCoreAsync(CancellationToken cancellationToken)
     {
         await EnsureInitializedCoreAsync(cancellationToken).ConfigureAwait(false);
         cancellationToken.ThrowIfCancellationRequested();
@@ -109,7 +109,7 @@ public sealed class JsonMemoryFileStore : IMemoryFileStore
             }
 
             ValidateStructure(memories);
-            return new MemoryDocument { Memories = new Dictionary<string, List<MemoryEntry>>(memories, StringComparer.Ordinal) };
+            return new MemoryContainer { Memories = new Dictionary<string, List<MemoryEntry>>(memories, StringComparer.Ordinal) };
         }
         catch (UnauthorizedAccessException exception)
         {
@@ -121,9 +121,9 @@ public sealed class JsonMemoryFileStore : IMemoryFileStore
         }
     }
 
-    private async Task SaveCoreAsync(MemoryDocument document, CancellationToken cancellationToken)
+    private async Task SaveCoreAsync(MemoryContainer container, CancellationToken cancellationToken)
     {
-        ValidateStructure(document.Memories);
+        ValidateStructure(container.Memories);
 
         try
         {
@@ -132,16 +132,16 @@ public sealed class JsonMemoryFileStore : IMemoryFileStore
             if (!string.IsNullOrEmpty(directoryPath))
                 Directory.CreateDirectory(directoryPath);
 
-            var json = JsonSerializer.Serialize(document.Memories, SerializerOptions);
+            var json = JsonSerializer.Serialize(container.Memories, SerializerOptions);
             await File.WriteAllTextAsync(_filePath, json, cancellationToken).ConfigureAwait(false);
         }
         catch (UnauthorizedAccessException exception)
         {
-            throw new InvalidOperationException($"Memory file '{_filePath}' is inaccessible.", exception);
+            throw new InvalidOperationException($"Memory file path '{_filePath}' is inaccessible.", exception);
         }
         catch (IOException exception)
         {
-            throw new InvalidOperationException($"Memory file '{_filePath}' could not be written.", exception);
+            throw new InvalidOperationException($"Memory file path '{_filePath}' could not be written.", exception);
         }
     }
 
@@ -177,14 +177,14 @@ public sealed class JsonMemoryFileStore : IMemoryFileStore
         }
     }
 
-    private MemoryDocument CreateDefaultDocument()
+    private MemoryContainer CreateDefaultContainer()
     {
         var memories = new Dictionary<string, List<MemoryEntry>>(StringComparer.Ordinal);
 
         foreach (var memoryName in _expectedMemoryNames)
             memories[memoryName] = [];
 
-        return new MemoryDocument { Memories = memories };
+        return new MemoryContainer { Memories = memories };
     }
 
     private static string ResolvePath(string configuredPath)

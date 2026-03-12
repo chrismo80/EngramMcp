@@ -11,7 +11,7 @@ public sealed class MemoryServiceTests
     [Fact]
     public async Task StoreAsync_RejectsWhitespaceOnlyText()
     {
-        var service = new MemoryService(new CodeMemoryCatalog(), new InMemoryFileStore(new MemoryDocument
+        var service = new MemoryService(new CodeMemoryCatalog(), new InMemoryStore(new MemoryContainer
         {
             Memories = new Dictionary<string, List<MemoryEntry>>(StringComparer.Ordinal)
             {
@@ -27,7 +27,7 @@ public sealed class MemoryServiceTests
     [Fact]
     public async Task StoreAsync_AllowsDuplicates_AndUsesTargetMemoryOnly()
     {
-        var fileStore = new InMemoryFileStore(new MemoryDocument
+        var memoryStore = new InMemoryStore(new MemoryContainer
         {
             Memories = new Dictionary<string, List<MemoryEntry>>(StringComparer.Ordinal)
             {
@@ -37,15 +37,15 @@ public sealed class MemoryServiceTests
             }
         });
 
-        var service = new MemoryService(new CodeMemoryCatalog(), fileStore);
+        var service = new MemoryService(new CodeMemoryCatalog(), memoryStore);
 
         await service.StoreAsync("short-term", "duplicate");
         await service.StoreAsync("short-term", "duplicate");
 
-        fileStore.Document.Memories["short-term"].Count.Is(2);
-        fileStore.Document.Memories["short-term"][0].Text.Is("duplicate");
-        fileStore.Document.Memories["short-term"][1].Text.Is("duplicate");
-        fileStore.Document.Memories["medium-term"].Count.Is(1);
+        memoryStore.Container.Memories["short-term"].Count.Is(2);
+        memoryStore.Container.Memories["short-term"][0].Text.Is("duplicate");
+        memoryStore.Container.Memories["short-term"][1].Text.Is("duplicate");
+        memoryStore.Container.Memories["medium-term"].Count.Is(1);
     }
 
     [Fact]
@@ -57,8 +57,8 @@ public sealed class MemoryServiceTests
         {
             var filePath = Path.Combine(rootPath, "memory.json");
             var catalog = new CodeMemoryCatalog();
-            var fileStore = new JsonMemoryFileStore(filePath, catalog);
-            var service = new MemoryService(catalog, fileStore);
+            var memoryStore = new JsonMemoryStore(filePath, catalog);
+            var service = new MemoryService(catalog, memoryStore);
             var operations = Enumerable.Range(1, 10)
                 .SelectMany(index => new[]
                 {
@@ -94,7 +94,7 @@ public sealed class MemoryServiceTests
     [Fact]
     public async Task RecallAsync_ReturnsConfiguredSectionsSeparatedByName()
     {
-        var service = new MemoryService(new CodeMemoryCatalog(), new InMemoryFileStore(new MemoryDocument
+        var service = new MemoryService(new CodeMemoryCatalog(), new InMemoryStore(new MemoryContainer
         {
             Memories = new Dictionary<string, List<MemoryEntry>>(StringComparer.Ordinal)
             {
@@ -111,38 +111,38 @@ public sealed class MemoryServiceTests
         recalled.Memories["long-term"][0].Text.Is("long");
     }
 
-    private sealed class InMemoryFileStore(MemoryDocument document) : IMemoryFileStore
+    private sealed class InMemoryStore(MemoryContainer container) : IMemoryStore
     {
-        public MemoryDocument Document { get; private set; } = document;
+        public MemoryContainer Container { get; private set; } = container;
 
         public Task EnsureInitializedAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
 
-        public Task UpdateAsync(Action<MemoryDocument> update, CancellationToken cancellationToken = default)
+        public Task UpdateAsync(Action<MemoryContainer> update, CancellationToken cancellationToken = default)
         {
             ArgumentNullException.ThrowIfNull(update);
 
-            var document = Clone(Document);
-            update(document);
-            Document = document;
+            var container = Clone(Container);
+            update(container);
+            Container = container;
             return Task.CompletedTask;
         }
 
-        public Task<MemoryDocument> LoadAsync(CancellationToken cancellationToken = default)
+        public Task<MemoryContainer> LoadAsync(CancellationToken cancellationToken = default)
         {
-            return Task.FromResult(Clone(Document));
+            return Task.FromResult(Clone(Container));
         }
 
-        public Task SaveAsync(MemoryDocument document, CancellationToken cancellationToken = default)
+        public Task SaveAsync(MemoryContainer container, CancellationToken cancellationToken = default)
         {
-            Document = Clone(document);
+            Container = Clone(container);
             return Task.CompletedTask;
         }
 
-        private static MemoryDocument Clone(MemoryDocument document)
+        private static MemoryContainer Clone(MemoryContainer container)
         {
-            return new MemoryDocument
+            return new MemoryContainer
             {
-                Memories = document.Memories.ToDictionary(
+                Memories = container.Memories.ToDictionary(
                     pair => pair.Key,
                     pair => pair.Value.Select(entry => new MemoryEntry(entry.Timestamp, entry.Text)).ToList(),
                     StringComparer.Ordinal)

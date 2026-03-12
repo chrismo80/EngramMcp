@@ -10,7 +10,7 @@ public static class InfrastructureExtensions
     {
 	    public IServiceCollection AddInfrastructure(string memoryFilePath) => services
 	        .AddSingleton<IMemoryCatalog, CodeMemoryCatalog>()
-	        .AddSingleton<IMemoryFileStore>(provider => new JsonMemoryFileStore(memoryFilePath, provider.GetRequiredService<IMemoryCatalog>()))
+	        .AddSingleton<IMemoryStore>(provider => new JsonMemoryStore(memoryFilePath, provider.GetRequiredService<IMemoryCatalog>()))
 	        .AddSingleton<IMemoryService, MemoryService>();
 
 	    public IServiceCollection AddInterfacesOf<T>() where T : class

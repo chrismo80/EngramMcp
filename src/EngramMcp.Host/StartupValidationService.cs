@@ -3,12 +3,12 @@ using Microsoft.Extensions.Hosting;
 
 namespace EngramMcp.Host;
 
-public sealed class StartupValidationService(IMemoryFileStore memoryFileStore) : IHostedService
+public sealed class StartupValidationService(IMemoryStore memoryStore) : IHostedService
 {
     public async Task StartAsync(CancellationToken cancellationToken)
     {
-        await memoryFileStore.EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
-        _ = await memoryFileStore.LoadAsync(cancellationToken).ConfigureAwait(false);
+        await memoryStore.EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
+        _ = await memoryStore.LoadAsync(cancellationToken).ConfigureAwait(false);
     }
 
     public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;

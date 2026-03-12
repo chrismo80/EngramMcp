@@ -2,7 +2,7 @@ namespace EngramMcp.Core.Abstractions;
 
 public interface IMemoryCatalog
 {
-    IReadOnlyList<MemoryModel> Memories { get; }
+    IReadOnlyList<MemorySection> Memories { get; }
 
-    MemoryModel GetByName(string name);
+    MemorySection GetByName(string name);
 }

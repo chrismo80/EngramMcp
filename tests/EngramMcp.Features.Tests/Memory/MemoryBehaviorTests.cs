@@ -9,8 +9,8 @@ public sealed class MemoryBehaviorTests
     [Fact]
     public void Store_AppendsEntry_AndEvictsOldestWhenCapacityIsExceeded()
     {
-        var memory = new Core.MemoryModel("shortTerm", 2);
-        var document = new MemoryDocument
+        var section = new Core.MemorySection("shortTerm", 2);
+        var container = new MemoryContainer
         {
             Memories = new Dictionary<string, List<MemoryEntry>>(StringComparer.Ordinal)
             {
@@ -22,9 +22,9 @@ public sealed class MemoryBehaviorTests
             }
         };
 
-        memory.Store(document, new MemoryEntry(new DateTime(2026, 3, 11, 10, 0, 0), "third"));
+        section.Store(container, new MemoryEntry(new DateTime(2026, 3, 11, 10, 0, 0), "third"));
 
-        var entries = memory.Read(document);
+        var entries = section.Read(container);
         entries.Count.Is(2);
         entries[0].Text.Is("second");
         entries[1].Text.Is("third");
@@ -33,12 +33,12 @@ public sealed class MemoryBehaviorTests
     [Fact]
     public void Read_CreatesMissingSection_AndReturnsEmptyList()
     {
-        var memory = new Core.MemoryModel("mediumTerm", 3);
-        var document = new MemoryDocument();
+        var section = new Core.MemorySection("mediumTerm", 3);
+        var container = new MemoryContainer();
 
-        var entries = memory.Read(document);
+        var entries = section.Read(container);
 
         entries.Count.Is(0);
-        document.Memories.ContainsKey("mediumTerm").IsTrue();
+        container.Memories.ContainsKey("mediumTerm").IsTrue();
     }
 }
