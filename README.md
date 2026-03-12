@@ -87,7 +87,21 @@ Example file shape:
       "text": "The human prefers to communicate in Spanish."
     }
   ],
-  "medium-term": [],
-  "short-term": []
+  "medium-term": [
+    {
+      "timestamp": "2026-03-12T10:11:30.0000000+01:00",
+      "text": "Always use 'AssertWithIs' package for unit tests."
+    }
+  ],
+  "short-term": [
+    {
+      "timestamp": "2026-03-12T10:15:30.0000000+01:00",
+      "text": "Add the new feature X."
+    },
+    {
+      "timestamp": "2026-03-12T10:16:30.0000000+01:00",
+      "text": "Fixed the bug Y."
+    }
+  ]
 }
 ```
