@@ -21,6 +21,16 @@ public static class FeatureExtensions
                     sb.AppendLine($"- {memory.Text}");
             }
 
+            if (container.CustomSections.Count > 0)
+            {
+                sb.AppendLine().AppendLine("## Custom Sections");
+
+                foreach (var section in container.CustomSections
+                    .OrderByDescending(summary => summary.EntryCount)
+                    .ThenBy(summary => summary.Name, StringComparer.Ordinal))
+                    sb.AppendLine($"- {section.Name} ({section.EntryCount})");
+            }
+
             return sb.ToString();
         }
     }

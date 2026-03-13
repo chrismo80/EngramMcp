@@ -91,6 +91,67 @@ public sealed class MemoryToolTests
     }
 
     [Fact]
+    public async Task RecallTool_OmitsCustomSectionListingBlockWhenNoCustomSectionsExist()
+    {
+        var service = new SpyMemoryService
+        {
+            RecallResult = new MemoryContainer
+            {
+                Memories = new Dictionary<string, List<MemoryEntry>>(StringComparer.Ordinal)
+                {
+                    ["long-term"] = [],
+                    ["medium-term"] = [],
+                    ["short-term"] = []
+                }
+            }
+        };
+        var tool = new RecallTool(service);
+
+        var result = await tool.ExecuteAsync(CancellationToken.None);
+
+        result.Contains("## Custom Sections", StringComparison.Ordinal).IsFalse();
+    }
+
+    [Fact]
+    public async Task RecallTool_AppendsCustomSectionListingSortedByDescendingEntryCount()
+    {
+        var service = new SpyMemoryService
+        {
+            RecallResult = new MemoryContainer
+            {
+                Memories = new Dictionary<string, List<MemoryEntry>>(StringComparer.Ordinal)
+                {
+                    ["long-term"] = [],
+                    ["medium-term"] = [],
+                    ["short-term"] = []
+                },
+                CustomSections =
+                [
+                    new MemorySectionSummary("project-small", 1),
+                    new MemorySectionSummary("project-large", 4),
+                    new MemorySectionSummary("project-medium", 2)
+                ]
+            }
+        };
+        var tool = new RecallTool(service);
+
+        var result = await tool.ExecuteAsync(CancellationToken.None);
+
+        result.Is(
+            "# Memory\r\n" +
+            "## long-term\r\n" +
+            "\r\n" +
+            "## medium-term\r\n" +
+            "\r\n" +
+            "## short-term\r\n" +
+            "\r\n" +
+            "## Custom Sections\r\n" +
+            "- project-large (4)\r\n" +
+            "- project-medium (2)\r\n" +
+            "- project-small (1)\r\n");
+    }
+
+    [Fact]
     public async Task ReadMemoryTool_ReturnsMarkdownForBuiltInSectionOnly()
     {
         var service = new SpyMemoryService
@@ -137,13 +198,13 @@ public sealed class MemoryToolTests
     {
         var service = new SpyMemoryService
         {
-            ReadException = new KeyNotFoundException("Memory section 'project-x' was not found.")
+            ReadException = new KeyNotFoundException("Memory section 'project-x' was not found. Available sections: long-term, medium-term, short-term, project-a.")
         };
         var tool = new ReadMemoryTool(service);
 
         var exception = await Assert.ThrowsAsync<KeyNotFoundException>(() => tool.ExecuteAsync("project-x", CancellationToken.None));
 
-        exception.Message.Is("Memory section 'project-x' was not found.");
+        exception.Message.Is("Memory section 'project-x' was not found. Available sections: long-term, medium-term, short-term, project-a.");
     }
 
     private sealed class SpyMemoryService : IMemoryService

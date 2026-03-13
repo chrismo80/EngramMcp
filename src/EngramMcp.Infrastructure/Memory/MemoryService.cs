@@ -31,7 +31,7 @@ public sealed class MemoryService(IMemoryCatalog memoryCatalog, IMemoryStore mem
         if (container.Memories.TryGetValue(section, out var customEntries))
             return CreateSectionDocument(section, customEntries);
 
-        throw new KeyNotFoundException($"Memory section '{section}' was not found.");
+        throw new KeyNotFoundException($"Memory section '{section}' was not found. Available sections: {GetAvailableSectionNames(container)}.");
     }
 
     public async Task<MemoryContainer> RecallAsync(CancellationToken cancellationToken = default)
@@ -43,7 +43,11 @@ public sealed class MemoryService(IMemoryCatalog memoryCatalog, IMemoryStore mem
         foreach (var memory in memoryCatalog.GetRecallOrder(container))
             recalled[memory.Name] = [.. memory.Read(container)];
 
-        return new MemoryContainer { Memories = recalled };
+        return new MemoryContainer
+        {
+            Memories = recalled,
+            CustomSections = GetCustomSectionSummaries(container)
+        };
     }
 
     private static MemoryContainer CreateSectionDocument(string section, IReadOnlyList<MemoryEntry> entries)
@@ -55,6 +59,30 @@ public sealed class MemoryService(IMemoryCatalog memoryCatalog, IMemoryStore mem
                 [section] = [.. entries]
             }
         };
+    }
+
+    private string GetAvailableSectionNames(MemoryContainer container)
+    {
+        var builtInNames = memoryCatalog.Memories.Select(memory => memory.Name);
+        var customNames = container.Memories.Keys
+            .Except(memoryCatalog.Memories.Select(memory => memory.Name), StringComparer.Ordinal)
+            .OrderBy(name => name, StringComparer.Ordinal);
+
+        return string.Join(", ", builtInNames.Concat(customNames));
+    }
+
+    private List<MemorySectionSummary> GetCustomSectionSummaries(MemoryContainer container)
+    {
+        var builtInNames = memoryCatalog.Memories
+            .Select(memory => memory.Name)
+            .ToHashSet(StringComparer.Ordinal);
+
+        return container.Memories
+            .Where(pair => !builtInNames.Contains(pair.Key))
+            .Select(pair => new MemorySectionSummary(pair.Key, pair.Value.Count))
+            .OrderByDescending(summary => summary.EntryCount)
+            .ThenBy(summary => summary.Name, StringComparer.Ordinal)
+            .ToList();
     }
 
     private static DateTime CreateTimestamp() => DateTime.SpecifyKind(DateTime.Now, DateTimeKind.Local);

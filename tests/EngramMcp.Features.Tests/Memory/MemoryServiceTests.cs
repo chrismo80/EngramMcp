@@ -151,11 +151,18 @@ public sealed class MemoryServiceTests
     [Fact]
     public async Task ReadAsync_ThrowsWhenSectionDoesNotExist()
     {
-        var service = new MemoryService(new CodeMemoryCatalog(), new InMemoryStore(CreateContainer()));
+        var service = new MemoryService(new CodeMemoryCatalog(), new InMemoryStore(CreateContainer(new Dictionary<string, List<MemoryEntry>>(StringComparer.Ordinal)
+        {
+            ["short-term"] = [],
+            ["medium-term"] = [],
+            ["long-term"] = [],
+            ["project-a"] = [],
+            ["project-z"] = [new(new DateTime(2026, 3, 11, 12, 0, 0), "custom")]
+        })));
 
         var exception = await Assert.ThrowsAsync<KeyNotFoundException>(() => service.ReadAsync("project-x"));
 
-        exception.Message.Is("Memory section 'project-x' was not found.");
+        exception.Message.Is("Memory section 'project-x' was not found. Available sections: long-term, medium-term, short-term, project-a, project-z.");
     }
 
     [Fact]
