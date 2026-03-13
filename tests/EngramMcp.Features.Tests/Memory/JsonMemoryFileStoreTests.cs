@@ -1,6 +1,7 @@
 using EngramMcp.Core;
 using EngramMcp.Infrastructure.Memory;
 using Is.Assertions;
+using System.Text.Json;
 using Xunit;
 
 namespace EngramMcp.Features.Tests.Memory;
@@ -44,6 +45,85 @@ public sealed class JsonMemoryStoreTests : IDisposable
     }
 
     [Fact]
+    public async Task LoadAsync_LoadsLegacyThreeBucketFiles()
+    {
+        Directory.CreateDirectory(_rootPath);
+        var filePath = Path.Combine(_rootPath, "memory.json");
+        await File.WriteAllTextAsync(filePath, """
+            {
+              "long-term": [],
+              "medium-term": [],
+              "short-term": []
+            }
+            """);
+
+        var store = CreateStore(filePath);
+        var container = await store.LoadAsync();
+
+        container.Memories.Keys.OrderBy(key => key).ToArray().SequenceEqual(["long-term", "medium-term", "short-term"]).IsTrue();
+    }
+
+    [Fact]
+    public async Task LoadAsync_ThrowsWhenRequiredSectionIsMissing()
+    {
+        Directory.CreateDirectory(_rootPath);
+        var filePath = Path.Combine(_rootPath, "memory.json");
+        await File.WriteAllTextAsync(filePath, """
+            {
+              "long-term": [],
+              "medium-term": []
+            }
+            """);
+
+        var store = CreateStore(filePath);
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => store.LoadAsync());
+
+        exception.Message.Contains("Missing required section 'short-term'", StringComparison.Ordinal).IsTrue();
+    }
+
+    [Fact]
+    public async Task LoadAsync_ThrowsWhenSectionIsNotAnArray()
+    {
+        Directory.CreateDirectory(_rootPath);
+        var filePath = Path.Combine(_rootPath, "memory.json");
+        await File.WriteAllTextAsync(filePath, """
+            {
+              "long-term": [],
+              "medium-term": null,
+              "short-term": []
+            }
+            """);
+
+        var store = CreateStore(filePath);
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => store.LoadAsync());
+
+        exception.Message.Contains("Section 'medium-term' must be an array", StringComparison.Ordinal).IsTrue();
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public async Task LoadAsync_ThrowsWhenCustomSectionNameIsEmptyOrWhitespace(string sectionName)
+    {
+        Directory.CreateDirectory(_rootPath);
+        var filePath = Path.Combine(_rootPath, "memory.json");
+        var escapedSectionName = JsonSerializer.Serialize(sectionName);
+        await File.WriteAllTextAsync(filePath, $$"""
+            {
+              "long-term": [],
+              "medium-term": [],
+              "short-term": [],
+              {{escapedSectionName}}: []
+            }
+            """);
+
+        var store = CreateStore(filePath);
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => store.LoadAsync());
+
+        exception.Message.Contains("Section names must not be empty or whitespace", StringComparison.Ordinal).IsTrue();
+    }
+
+    [Fact]
     public async Task SaveAsync_PersistsTopLevelNameKeyedSections()
     {
         var filePath = Path.Combine(_rootPath, "memory.json");
@@ -67,6 +147,56 @@ public sealed class JsonMemoryStoreTests : IDisposable
         json.Contains("\"memories\"", StringComparison.Ordinal).IsFalse();
         json.Contains("\"timestamp\"", StringComparison.Ordinal).IsTrue();
         json.Contains("\"text\"", StringComparison.Ordinal).IsTrue();
+    }
+
+    [Fact]
+    public async Task SaveAsync_AllowsAdditionalCustomSections()
+    {
+        var filePath = Path.Combine(_rootPath, "memory.json");
+        var store = CreateStore(filePath);
+        await store.EnsureInitializedAsync();
+
+        var container = new MemoryContainer
+        {
+            Memories = new Dictionary<string, List<MemoryEntry>>(StringComparer.Ordinal)
+            {
+                ["short-term"] = [],
+                ["medium-term"] = [],
+                ["long-term"] = [],
+                ["project-x"] = [new(new DateTime(2026, 3, 11, 15, 4, 5), "hello")]
+            }
+        };
+
+        await store.SaveAsync(container);
+        var loaded = await store.LoadAsync();
+
+        loaded.Memories.ContainsKey("project-x").IsTrue();
+        loaded.Memories["project-x"][0].Text.Is("hello");
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public async Task SaveAsync_ThrowsWhenCustomSectionNameIsEmptyOrWhitespace(string sectionName)
+    {
+        var filePath = Path.Combine(_rootPath, "memory.json");
+        var store = CreateStore(filePath);
+        await store.EnsureInitializedAsync();
+
+        var container = new MemoryContainer
+        {
+            Memories = new Dictionary<string, List<MemoryEntry>>(StringComparer.Ordinal)
+            {
+                ["short-term"] = [],
+                ["medium-term"] = [],
+                ["long-term"] = [],
+                [sectionName] = []
+            }
+        };
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => store.SaveAsync(container));
+
+        exception.Message.Contains("Section names must not be empty or whitespace", StringComparison.Ordinal).IsTrue();
     }
 
     [Fact]

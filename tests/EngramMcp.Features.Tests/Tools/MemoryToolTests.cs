@@ -43,6 +43,29 @@ public sealed class MemoryToolTests
     }
 
     [Fact]
+    public async Task StoreMemoryTool_DelegatesToSharedServiceWithProvidedBucket()
+    {
+        var service = new SpyMemoryService();
+        var tool = new StoreMemoryTool(service);
+
+        await tool.ExecuteAsync("project-x", "remember this", CancellationToken.None);
+
+        service.StoredName.Is("project-x");
+        service.StoredText.Is("remember this");
+    }
+
+    [Fact]
+    public async Task StoreMemoryTool_AllowsBuiltInBucketNames()
+    {
+        var service = new SpyMemoryService();
+        var tool = new StoreMemoryTool(service);
+
+        await tool.ExecuteAsync("long-term", "remember this", CancellationToken.None);
+
+        service.StoredName.Is("long-term");
+    }
+
+    [Fact]
     public async Task RecallTool_ReturnsMarkdownWithOrderedSectionsAndNoTimestamps()
     {
         var expected = new MemoryContainer
@@ -61,6 +84,127 @@ public sealed class MemoryToolTests
         var result = await tool.ExecuteAsync(CancellationToken.None);
 
         result.IsNotEmpty();
+
+        Assert.True(
+            result.IndexOf("## long-term", StringComparison.Ordinal) < result.IndexOf("## short-term", StringComparison.Ordinal),
+            "Expected long-term section to appear before short-term section.");
+    }
+
+    [Fact]
+    public async Task RecallTool_OmitsCustomSectionListingBlockWhenNoCustomSectionsExist()
+    {
+        var service = new SpyMemoryService
+        {
+            RecallResult = new MemoryContainer
+            {
+                Memories = new Dictionary<string, List<MemoryEntry>>(StringComparer.Ordinal)
+                {
+                    ["long-term"] = [],
+                    ["medium-term"] = [],
+                    ["short-term"] = []
+                }
+            }
+        };
+        var tool = new RecallTool(service);
+
+        var result = await tool.ExecuteAsync(CancellationToken.None);
+
+        result.Contains("## Custom Sections", StringComparison.Ordinal).IsFalse();
+    }
+
+    [Fact]
+    public async Task RecallTool_AppendsCustomSectionListingSortedByDescendingEntryCount()
+    {
+        var service = new SpyMemoryService
+        {
+            RecallResult = new MemoryContainer
+            {
+                Memories = new Dictionary<string, List<MemoryEntry>>(StringComparer.Ordinal)
+                {
+                    ["long-term"] = [],
+                    ["medium-term"] = [],
+                    ["short-term"] = []
+                },
+                CustomSections =
+                [
+                    new MemorySectionSummary("project-small", 1),
+                    new MemorySectionSummary("project-large", 4),
+                    new MemorySectionSummary("project-medium", 2)
+                ]
+            }
+        };
+        var tool = new RecallTool(service);
+
+        var result = await tool.ExecuteAsync(CancellationToken.None);
+
+        result.Is(
+            "# Memory\r\n" +
+            "## long-term\r\n" +
+            "\r\n" +
+            "## medium-term\r\n" +
+            "\r\n" +
+            "## short-term\r\n" +
+            "\r\n" +
+            "## Custom Sections\r\n" +
+            "- project-large (4)\r\n" +
+            "- project-medium (2)\r\n" +
+            "- project-small (1)\r\n");
+    }
+
+    [Fact]
+    public async Task ReadMemoryTool_ReturnsMarkdownForBuiltInSectionOnly()
+    {
+        var service = new SpyMemoryService
+        {
+            ReadResult = new MemoryContainer
+            {
+                Memories = new Dictionary<string, List<MemoryEntry>>(StringComparer.Ordinal)
+                {
+                    ["short-term"] = [new MemoryEntry(new DateTime(2026, 3, 11, 12, 0, 0), "short")]
+                }
+            }
+        };
+        var tool = new ReadMemoryTool(service);
+
+        var result = await tool.ExecuteAsync("short-term", CancellationToken.None);
+
+        service.ReadSection.Is("short-term");
+        result.Is("# Memory\r\n## short-term\r\n- short\r\n");
+    }
+
+    [Fact]
+    public async Task ReadMemoryTool_ReturnsMarkdownForCustomSectionOnly()
+    {
+        var service = new SpyMemoryService
+        {
+            ReadResult = new MemoryContainer
+            {
+                Memories = new Dictionary<string, List<MemoryEntry>>(StringComparer.Ordinal)
+                {
+                    ["project-x"] = [new MemoryEntry(new DateTime(2026, 3, 11, 12, 0, 0), "custom")]
+                }
+            }
+        };
+        var tool = new ReadMemoryTool(service);
+
+        var result = await tool.ExecuteAsync("project-x", CancellationToken.None);
+
+        service.ReadSection.Is("project-x");
+        result.Is("# Memory\r\n## project-x\r\n- custom\r\n");
+    }
+
+    [Fact]
+    public async Task ReadMemoryTool_PropagatesMissingSectionFailure()
+    {
+        var service = new SpyMemoryService
+        {
+            ReadException = new KeyNotFoundException("Memory section 'project-x' was not found. Available sections: long-term, medium-term, short-term, project-a.")
+        };
+        var tool = new ReadMemoryTool(service);
+
+        var exception = await Assert.ThrowsAsync<KeyNotFoundException>(() => tool.ExecuteAsync("project-x", CancellationToken.None));
+
+        exception.Message.Is("Memory section 'project-x' was not found. Available sections: long-term, medium-term, short-term, project-a.");
     }
 
     private sealed class SpyMemoryService : IMemoryService
@@ -69,13 +213,28 @@ public sealed class MemoryToolTests
 
         public string? StoredText { get; private set; }
 
+        public string? ReadSection { get; private set; }
+
         public MemoryContainer RecallResult { get; init; } = new();
 
-        public Task StoreAsync(string memoryName, string text, CancellationToken cancellationToken = default)
+        public MemoryContainer ReadResult { get; init; } = new();
+
+        public Exception? ReadException { get; init; }
+
+        public Task StoreAsync(string section, string text, CancellationToken cancellationToken = default)
         {
-            StoredName = memoryName;
+            StoredName = section;
             StoredText = text;
             return Task.CompletedTask;
+        }
+
+        public Task<MemoryContainer> ReadAsync(string section, CancellationToken cancellationToken = default)
+        {
+            ReadSection = section;
+
+            return ReadException is null
+                ? Task.FromResult(ReadResult)
+                : Task.FromException<MemoryContainer>(ReadException);
         }
 
         public Task<MemoryContainer> RecallAsync(CancellationToken cancellationToken = default)

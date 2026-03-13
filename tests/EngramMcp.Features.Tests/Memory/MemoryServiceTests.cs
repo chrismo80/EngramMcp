@@ -27,15 +27,12 @@ public sealed class MemoryServiceTests
     [Fact]
     public async Task StoreAsync_AllowsDuplicates_AndUsesTargetMemoryOnly()
     {
-        var memoryStore = new InMemoryStore(new MemoryContainer
+        var memoryStore = new InMemoryStore(CreateContainer(new Dictionary<string, List<MemoryEntry>>(StringComparer.Ordinal)
         {
-            Memories = new Dictionary<string, List<MemoryEntry>>(StringComparer.Ordinal)
-            {
-                ["short-term"] = [],
-                ["medium-term"] = [new(new DateTime(2026, 3, 11, 9, 0, 0), "existing")],
-                ["long-term"] = []
-            }
-        });
+            ["short-term"] = [],
+            ["medium-term"] = [new(new DateTime(2026, 3, 11, 9, 0, 0), "existing")],
+            ["long-term"] = []
+        }));
 
         var service = new MemoryService(new CodeMemoryCatalog(), memoryStore);
 
@@ -46,6 +43,33 @@ public sealed class MemoryServiceTests
         memoryStore.Container.Memories["short-term"][0].Text.Is("duplicate");
         memoryStore.Container.Memories["short-term"][1].Text.Is("duplicate");
         memoryStore.Container.Memories["medium-term"].Count.Is(1);
+    }
+
+    [Fact]
+    public async Task StoreAsync_CreatesCustomBucketOnFirstWrite()
+    {
+        var memoryStore = new InMemoryStore(CreateContainer());
+        var service = new MemoryService(new CodeMemoryCatalog(), memoryStore);
+
+        await service.StoreAsync("project-x", "custom");
+
+        memoryStore.Container.Memories.ContainsKey("project-x").IsTrue();
+        memoryStore.Container.Memories["project-x"].Select(entry => entry.Text).ToArray().SequenceEqual(["custom"]).IsTrue();
+    }
+
+    [Fact]
+    public async Task StoreAsync_UsesSharedCustomBucketCapacity()
+    {
+        var memoryStore = new InMemoryStore(CreateContainer());
+        var service = new MemoryService(new CodeMemoryCatalog(), memoryStore);
+
+        foreach (var index in Enumerable.Range(1, 55))
+            await service.StoreAsync("project-x", $"entry-{index}");
+
+        var entries = memoryStore.Container.Memories["project-x"];
+        entries.Count.Is(50);
+        entries[0].Text.Is("entry-6");
+        entries[^1].Text.Is("entry-55");
     }
 
     [Fact]
@@ -92,23 +116,102 @@ public sealed class MemoryServiceTests
     }
 
     [Fact]
+    public async Task ReadAsync_ReturnsBuiltInSectionOnly()
+    {
+        var service = new MemoryService(new CodeMemoryCatalog(), new InMemoryStore(CreateContainer(new Dictionary<string, List<MemoryEntry>>(StringComparer.Ordinal)
+        {
+            ["short-term"] = [new(new DateTime(2026, 3, 11, 10, 0, 0), "short")],
+            ["medium-term"] = [new(new DateTime(2026, 3, 11, 11, 0, 0), "medium")],
+            ["long-term"] = []
+        })));
+
+        var result = await service.ReadAsync("short-term");
+
+        result.Memories.Keys.ToArray().SequenceEqual(["short-term"]).IsTrue();
+        result.Memories["short-term"].Select(entry => entry.Text).ToArray().SequenceEqual(["short"]).IsTrue();
+    }
+
+    [Fact]
+    public async Task ReadAsync_ReturnsCustomSectionOnly()
+    {
+        var service = new MemoryService(new CodeMemoryCatalog(), new InMemoryStore(CreateContainer(new Dictionary<string, List<MemoryEntry>>(StringComparer.Ordinal)
+        {
+            ["short-term"] = [],
+            ["medium-term"] = [],
+            ["long-term"] = [],
+            ["project-x"] = [new(new DateTime(2026, 3, 11, 12, 0, 0), "custom")]
+        })));
+
+        var result = await service.ReadAsync("project-x");
+
+        result.Memories.Keys.ToArray().SequenceEqual(["project-x"]).IsTrue();
+        result.Memories["project-x"].Select(entry => entry.Text).ToArray().SequenceEqual(["custom"]).IsTrue();
+    }
+
+    [Fact]
+    public async Task ReadAsync_ThrowsWhenSectionDoesNotExist()
+    {
+        var service = new MemoryService(new CodeMemoryCatalog(), new InMemoryStore(CreateContainer(new Dictionary<string, List<MemoryEntry>>(StringComparer.Ordinal)
+        {
+            ["short-term"] = [],
+            ["medium-term"] = [],
+            ["long-term"] = [],
+            ["project-a"] = [],
+            ["project-z"] = [new(new DateTime(2026, 3, 11, 12, 0, 0), "custom")]
+        })));
+
+        var exception = await Assert.ThrowsAsync<KeyNotFoundException>(() => service.ReadAsync("project-x"));
+
+        exception.Message.Is("Memory section 'project-x' was not found. Available sections: long-term, medium-term, short-term, project-a, project-z.");
+    }
+
+    [Fact]
     public async Task RecallAsync_ReturnsConfiguredSectionsSeparatedByName()
     {
-        var service = new MemoryService(new CodeMemoryCatalog(), new InMemoryStore(new MemoryContainer
+        var service = new MemoryService(new CodeMemoryCatalog(), new InMemoryStore(CreateContainer(new Dictionary<string, List<MemoryEntry>>(StringComparer.Ordinal)
         {
-            Memories = new Dictionary<string, List<MemoryEntry>>(StringComparer.Ordinal)
-            {
-                ["short-term"] = [new(new DateTime(2026, 3, 11, 10, 0, 0), "short")],
-                ["medium-term"] = [],
-                ["long-term"] = [new(new DateTime(2026, 3, 11, 11, 0, 0), "long")]
-            }
-        }));
+            ["short-term"] = [new(new DateTime(2026, 3, 11, 10, 0, 0), "short")],
+            ["medium-term"] = [],
+            ["long-term"] = [new(new DateTime(2026, 3, 11, 11, 0, 0), "long")]
+        })));
 
         var recalled = await service.RecallAsync();
 
         recalled.Memories.Keys.OrderBy(key => key).ToArray().SequenceEqual(["long-term", "medium-term", "short-term"]).IsTrue();
         recalled.Memories["short-term"][0].Text.Is("short");
         recalled.Memories["long-term"][0].Text.Is("long");
+    }
+
+    [Fact]
+    public async Task RecallAsync_ReturnsOnlyFixedBucketsInStableOrder()
+    {
+        var service = new MemoryService(new CodeMemoryCatalog(), new InMemoryStore(CreateContainer(new Dictionary<string, List<MemoryEntry>>(StringComparer.Ordinal)
+        {
+            ["z-last"] = [new(new DateTime(2026, 3, 11, 12, 0, 0), "z")],
+            ["short-term"] = [],
+            ["medium-term"] = [],
+            ["a-first"] = [new(new DateTime(2026, 3, 11, 13, 0, 0), "a")],
+            ["long-term"] = []
+        })));
+
+        var recalled = await service.RecallAsync();
+
+        recalled.Memories.Keys.ToArray().SequenceEqual(["long-term", "medium-term", "short-term"]).IsTrue();
+        recalled.Memories.ContainsKey("a-first").IsFalse();
+        recalled.Memories.ContainsKey("z-last").IsFalse();
+    }
+
+    private static MemoryContainer CreateContainer(Dictionary<string, List<MemoryEntry>>? memories = null)
+    {
+        return new MemoryContainer
+        {
+            Memories = memories ?? new Dictionary<string, List<MemoryEntry>>(StringComparer.Ordinal)
+            {
+                ["short-term"] = [],
+                ["medium-term"] = [],
+                ["long-term"] = []
+            }
+        };
     }
 
     private sealed class InMemoryStore(MemoryContainer container) : IMemoryStore

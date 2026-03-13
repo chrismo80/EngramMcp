@@ -204,15 +204,21 @@ public sealed class JsonMemoryStore : IMemoryStore
 
     private void ValidateStructure(IReadOnlyDictionary<string, List<MemoryEntry>> memories)
     {
-        var actualNames = memories.Keys.OrderBy(name => name, StringComparer.Ordinal).ToArray();
-        var expectedNames = _expectedMemoryNames.OrderBy(name => name, StringComparer.Ordinal).ToArray();
-
-        if (!actualNames.SequenceEqual(expectedNames, StringComparer.Ordinal))
-            throw new InvalidOperationException($"Memory file has invalid structure. Expected sections: {string.Join(", ", expectedNames)}.");
-
         foreach (var memoryName in _expectedMemoryNames)
         {
+            if (!memories.ContainsKey(memoryName))
+                throw new InvalidOperationException($"Memory file has invalid structure. Missing required section '{memoryName}'.");
+
             if (memories[memoryName] is null)
+                throw new InvalidOperationException($"Memory file has invalid structure. Section '{memoryName}' must be an array.");
+        }
+
+        foreach (var (memoryName, entries) in memories)
+        {
+            if (string.IsNullOrWhiteSpace(memoryName))
+                throw new InvalidOperationException("Memory file has invalid structure. Section names must not be empty or whitespace.");
+
+            if (entries is null)
                 throw new InvalidOperationException($"Memory file has invalid structure. Section '{memoryName}' must be an array.");
         }
     }
