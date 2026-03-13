@@ -56,9 +56,9 @@ public sealed class MemoryServiceTests
             }
         }));
 
-        var exception = await Assert.ThrowsAsync<ArgumentException>(() => service.StoreAsync(ShortTerm, new string('a', 281)));
+        var exception = await Assert.ThrowsAsync<ArgumentException>(() => service.StoreAsync(ShortTerm, new string('a', 581)));
 
-        exception.Message.Is("Memory text must be 280 characters or fewer. (Parameter 'text')");
+        exception.Message.Is("Memory text must be 500 characters or fewer. (Parameter 'text')");
     }
 
     [Fact]

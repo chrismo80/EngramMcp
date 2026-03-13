@@ -17,11 +17,11 @@ public sealed class MemoryBehaviorTests
     [Fact]
     public void MemoryEntry_RejectsOverlyLongText()
     {
-        var tooLongText = new string('a', 281);
+        var tooLongText = new string('a', 581);
 
         var exception = Assert.Throws<ArgumentException>(() => new MemoryEntry(new DateTime(2026, 3, 11, 8, 0, 0), tooLongText));
 
-        exception.Message.Is("Memory text must be 280 characters or fewer. (Parameter 'text')");
+        exception.Message.Is("Memory text must be 500 characters or fewer. (Parameter 'text')");
     }
 
     [Fact]
