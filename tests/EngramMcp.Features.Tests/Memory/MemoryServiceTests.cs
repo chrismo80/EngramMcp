@@ -25,6 +25,54 @@ public sealed class MemoryServiceTests
     }
 
     [Fact]
+    public async Task StoreAsync_RejectsMultilineText()
+    {
+        var service = new MemoryService(new CodeMemoryCatalog(), new InMemoryStore(new MemoryContainer
+        {
+            Memories = new Dictionary<string, List<MemoryEntry>>(StringComparer.Ordinal)
+            {
+                ["short-term"] = [],
+                ["medium-term"] = [],
+                ["long-term"] = []
+            }
+        }));
+
+        var exception = await Assert.ThrowsAsync<ArgumentException>(() => service.StoreAsync("short-term", "first\nsecond"));
+
+        exception.Message.Is("Memory text must be a single line without carriage returns or line feeds. (Parameter 'text')");
+    }
+
+    [Fact]
+    public async Task StoreAsync_RejectsOverlyLongText()
+    {
+        var service = new MemoryService(new CodeMemoryCatalog(), new InMemoryStore(new MemoryContainer
+        {
+            Memories = new Dictionary<string, List<MemoryEntry>>(StringComparer.Ordinal)
+            {
+                ["short-term"] = [],
+                ["medium-term"] = [],
+                ["long-term"] = []
+            }
+        }));
+
+        var exception = await Assert.ThrowsAsync<ArgumentException>(() => service.StoreAsync("short-term", new string('a', 281)));
+
+        exception.Message.Is("Memory text must be 280 characters or fewer. (Parameter 'text')");
+    }
+
+    [Fact]
+    public async Task StoreAsync_PersistsValidSingleLineText()
+    {
+        var memoryStore = new InMemoryStore(CreateContainer());
+        var service = new MemoryService(new CodeMemoryCatalog(), memoryStore);
+
+        await service.StoreAsync("short-term", "valid single line");
+
+        memoryStore.Container.Memories["short-term"].Count.Is(1);
+        memoryStore.Container.Memories["short-term"][0].Text.Is("valid single line");
+    }
+
+    [Fact]
     public async Task StoreAsync_AllowsDuplicates_AndUsesTargetMemoryOnly()
     {
         var memoryStore = new InMemoryStore(CreateContainer(new Dictionary<string, List<MemoryEntry>>(StringComparer.Ordinal)

@@ -226,12 +226,7 @@ public sealed class MemoryToolTests
         service.SearchQuery.Is("docker");
         result.Is(
             "# Memory Search Results\r\n" +
-            "## Result 1\r\n" +
-            "Section: project-x\r\n" +
-            "Importance: high\r\n" +
-            "Timestamp: 2026-03-11T12:00:00.0000000Z\r\n" +
-            "Text: docker reminder\r\n" +
-            "Tags: ops\r\n");
+            "- docker reminder (`project-x`)\r\n");
     }
 
     [Fact]
@@ -243,6 +238,31 @@ public sealed class MemoryToolTests
         var result = await tool.ExecuteAsync("missing", CancellationToken.None);
 
         result.Is("# Memory Search Results\r\nNo matches found.\r\n");
+    }
+
+    [Fact]
+    public async Task SearchMemoriesTool_EmitsOneLinePerResultWithoutTextFlatteningLogic()
+    {
+        var service = new SpyMemoryService
+        {
+            SearchResult =
+            [
+                new MemorySearchResult(
+                    "project-x",
+                    new MemoryEntry(new DateTime(2026, 3, 11, 12, 0, 0, DateTimeKind.Utc), "docker reminder", ["ops"], MemoryImportance.High)),
+                new MemorySearchResult(
+                    "project-y",
+                    new MemoryEntry(new DateTime(2026, 3, 11, 13, 0, 0, DateTimeKind.Utc), "workspace note", ["dev"], MemoryImportance.Normal))
+            ]
+        };
+        var tool = new SearchMemoriesTool(service);
+
+        var result = await tool.ExecuteAsync("docker", CancellationToken.None);
+
+        result.Is(
+            "# Memory Search Results\r\n" +
+            "- docker reminder (`project-x`)\r\n" +
+            "- workspace note (`project-y`)\r\n");
     }
 
     [Fact]
