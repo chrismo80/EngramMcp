@@ -3,6 +3,7 @@ using EngramMcp.Core.Abstractions;
 using EngramMcp.Features.Tools;
 using Is.Assertions;
 using Xunit;
+using static EngramMcp.Core.BuiltInMemorySections;
 
 namespace EngramMcp.Features.Tests.Tools;
 
@@ -16,7 +17,7 @@ public sealed class MemoryToolTests
 
         await tool.ExecuteAsync("remember this", CancellationToken.None);
 
-        service.StoredName.Is("short-term");
+        service.StoredName.Is(ShortTerm);
         service.StoredText.Is("remember this");
     }
 
@@ -28,7 +29,7 @@ public sealed class MemoryToolTests
 
         await tool.ExecuteAsync("remember this", CancellationToken.None);
 
-        service.StoredName.Is("medium-term");
+        service.StoredName.Is(MediumTerm);
     }
 
     [Fact]
@@ -39,7 +40,7 @@ public sealed class MemoryToolTests
 
         await tool.ExecuteAsync("remember this", CancellationToken.None);
 
-        service.StoredName.Is("long-term");
+        service.StoredName.Is(LongTerm);
     }
 
     [Fact]
@@ -60,9 +61,9 @@ public sealed class MemoryToolTests
         var service = new SpyMemoryService();
         var tool = new StoreMemoryTool(service);
 
-        await tool.ExecuteAsync("long-term", "remember this", CancellationToken.None);
+        await tool.ExecuteAsync(LongTerm, "remember this", CancellationToken.None);
 
-        service.StoredName.Is("long-term");
+        service.StoredName.Is(LongTerm);
     }
 
     [Fact]
@@ -72,9 +73,9 @@ public sealed class MemoryToolTests
         {
             Memories = new Dictionary<string, List<MemoryEntry>>(StringComparer.Ordinal)
             {
-                ["long-term"] = [new MemoryEntry(new DateTime(2026, 3, 11, 13, 0, 0), "long")],
-                ["medium-term"] = [],
-                ["short-term"] = [new MemoryEntry(new DateTime(2026, 3, 11, 12, 0, 0), "short")],
+                [LongTerm] = [new MemoryEntry(new DateTime(2026, 3, 11, 13, 0, 0), "long")],
+                [MediumTerm] = [],
+                [ShortTerm] = [new MemoryEntry(new DateTime(2026, 3, 11, 12, 0, 0), "short")],
             }
         };
 
@@ -86,8 +87,8 @@ public sealed class MemoryToolTests
         result.IsNotEmpty();
 
         Assert.True(
-            result.IndexOf("## long-term", StringComparison.Ordinal) < result.IndexOf("## short-term", StringComparison.Ordinal),
-            "Expected long-term section to appear before short-term section.");
+            result.IndexOf($"## {LongTerm}", StringComparison.Ordinal) < result.IndexOf($"## {ShortTerm}", StringComparison.Ordinal),
+            $"Expected {LongTerm} section to appear before {ShortTerm} section.");
     }
 
     [Fact]
@@ -99,9 +100,9 @@ public sealed class MemoryToolTests
             {
                 Memories = new Dictionary<string, List<MemoryEntry>>(StringComparer.Ordinal)
                 {
-                    ["long-term"] = [],
-                    ["medium-term"] = [],
-                    ["short-term"] = []
+                    [LongTerm] = [],
+                    [MediumTerm] = [],
+                    [ShortTerm] = []
                 }
             }
         };
@@ -121,9 +122,9 @@ public sealed class MemoryToolTests
             {
                 Memories = new Dictionary<string, List<MemoryEntry>>(StringComparer.Ordinal)
                 {
-                    ["long-term"] = [],
-                    ["medium-term"] = [],
-                    ["short-term"] = []
+                    [LongTerm] = [],
+                    [MediumTerm] = [],
+                    [ShortTerm] = []
                 },
                 CustomSections =
                 [
@@ -139,11 +140,11 @@ public sealed class MemoryToolTests
 
         result.Is(
             "# Memory\r\n" +
-            "## long-term\r\n" +
+            $"## {LongTerm}\r\n" +
             "\r\n" +
-            "## medium-term\r\n" +
+            $"## {MediumTerm}\r\n" +
             "\r\n" +
-            "## short-term\r\n" +
+            $"## {ShortTerm}\r\n" +
             "\r\n" +
             "## Custom Sections\r\n" +
             "- project-large (4)\r\n" +
@@ -160,16 +161,16 @@ public sealed class MemoryToolTests
             {
                 Memories = new Dictionary<string, List<MemoryEntry>>(StringComparer.Ordinal)
                 {
-                    ["short-term"] = [new MemoryEntry(new DateTime(2026, 3, 11, 12, 0, 0), "short")]
+                    [ShortTerm] = [new MemoryEntry(new DateTime(2026, 3, 11, 12, 0, 0), "short")]
                 }
             }
         };
         var tool = new ReadMemoryTool(service);
 
-        var result = await tool.ExecuteAsync("short-term", CancellationToken.None);
+        var result = await tool.ExecuteAsync(ShortTerm, CancellationToken.None);
 
-        service.ReadSection.Is("short-term");
-        result.Is("# Memory\r\n## short-term\r\n- short\r\n");
+        service.ReadSection.Is(ShortTerm);
+        result.Is($"# Memory\r\n## {ShortTerm}\r\n- short\r\n");
     }
 
     [Fact]
@@ -198,13 +199,13 @@ public sealed class MemoryToolTests
     {
         var service = new SpyMemoryService
         {
-            ReadException = new KeyNotFoundException("Memory section 'project-x' was not found. Available sections: long-term, medium-term, short-term, project-a.")
+            ReadException = new KeyNotFoundException($"Memory section 'project-x' was not found. Available sections: {LongTerm}, {MediumTerm}, {ShortTerm}, project-a.")
         };
         var tool = new ReadMemoryTool(service);
 
         var exception = await Assert.ThrowsAsync<KeyNotFoundException>(() => tool.ExecuteAsync("project-x", CancellationToken.None));
 
-        exception.Message.Is("Memory section 'project-x' was not found. Available sections: long-term, medium-term, short-term, project-a.");
+        exception.Message.Is($"Memory section 'project-x' was not found. Available sections: {LongTerm}, {MediumTerm}, {ShortTerm}, project-a.");
     }
 
     [Fact]
@@ -288,9 +289,9 @@ public sealed class MemoryToolTests
             {
                 Memories = new Dictionary<string, List<MemoryEntry>>(StringComparer.Ordinal)
                 {
-                    ["long-term"] = [],
-                    ["medium-term"] = [],
-                    ["short-term"] = [new MemoryEntry(new DateTime(2026, 3, 11, 12, 0, 0), "short")]
+                    [LongTerm] = [],
+                    [MediumTerm] = [],
+                    [ShortTerm] = [new MemoryEntry(new DateTime(2026, 3, 11, 12, 0, 0), "short")]
                 }
             }
         };
@@ -298,7 +299,7 @@ public sealed class MemoryToolTests
 
         var result = await tool.ExecuteAsync(CancellationToken.None);
 
-        result.Is("# Memory\r\n## long-term\r\n\r\n## medium-term\r\n\r\n## short-term\r\n- short\r\n");
+        result.Is($"# Memory\r\n## {LongTerm}\r\n\r\n## {MediumTerm}\r\n\r\n## {ShortTerm}\r\n- short\r\n");
     }
 
     private sealed class SpyMemoryService : IMemoryService

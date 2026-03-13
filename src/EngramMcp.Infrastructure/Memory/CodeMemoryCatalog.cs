@@ -1,5 +1,6 @@
 using EngramMcp.Core;
 using EngramMcp.Core.Abstractions;
+using static EngramMcp.Core.BuiltInMemorySections;
 
 namespace EngramMcp.Infrastructure.Memory;
 
@@ -9,27 +10,24 @@ public sealed class CodeMemoryCatalog : IMemoryCatalog
 
     private readonly IReadOnlyDictionary<string, MemorySection> _fixedMemories;
 
+    public IReadOnlyList<MemorySection> Memories { get; } =
+    [
+        new(LongTerm, 40),
+        new(MediumTerm, 20),
+        new(ShortTerm, 10),
+    ];
+    
     public CodeMemoryCatalog()
     {
-        Memories =
-        [
-            new("long-term", 40),
-            new("medium-term", 20),
-            new("short-term", 10),
-        ];
-
         _fixedMemories = Memories.ToDictionary(memory => memory.Name, StringComparer.Ordinal);
     }
 
-    public IReadOnlyList<MemorySection> Memories { get; }
 
     public MemorySection GetByName(string name)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
 
-        return _fixedMemories.TryGetValue(name, out var memory)
-            ? memory
-            : new MemorySection(name, CustomMemoryCapacity);
+        return _fixedMemories.TryGetValue(name, out var memory) ? memory : new MemorySection(name, CustomMemoryCapacity);
     }
 
     public IReadOnlyList<MemorySection> GetRecallOrder(MemoryContainer container)

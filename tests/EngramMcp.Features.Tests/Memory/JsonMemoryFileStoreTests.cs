@@ -3,6 +3,7 @@ using EngramMcp.Infrastructure.Memory;
 using Is.Assertions;
 using System.Text.Json;
 using Xunit;
+using static EngramMcp.Core.BuiltInMemorySections;
 
 namespace EngramMcp.Features.Tests.Memory;
 
@@ -25,10 +26,10 @@ public sealed class JsonMemoryStoreTests : IDisposable
         var container = await store.LoadAsync();
 
         File.Exists(filePath).IsTrue();
-        container.Memories.Keys.OrderBy(key => key).ToArray().SequenceEqual(["long-term", "medium-term", "short-term"]).IsTrue();
-        container.Memories["short-term"].Count.Is(0);
-        container.Memories["medium-term"].Count.Is(0);
-        container.Memories["long-term"].Count.Is(0);
+        container.Memories.Keys.OrderBy(key => key).ToArray().SequenceEqual([LongTerm, MediumTerm, ShortTerm]).IsTrue();
+        container.Memories[ShortTerm].Count.Is(0);
+        container.Memories[MediumTerm].Count.Is(0);
+        container.Memories[LongTerm].Count.Is(0);
     }
 
     [Fact]
@@ -49,18 +50,18 @@ public sealed class JsonMemoryStoreTests : IDisposable
     {
         Directory.CreateDirectory(_rootPath);
         var filePath = Path.Combine(_rootPath, "memory.json");
-        await File.WriteAllTextAsync(filePath, """
+        await File.WriteAllTextAsync(filePath, $$"""
             {
-              "long-term": [],
-              "medium-term": [],
-              "short-term": []
+              "{{LongTerm}}": [],
+              "{{MediumTerm}}": [],
+              "{{ShortTerm}}": []
             }
             """);
 
         var store = CreateStore(filePath);
         var container = await store.LoadAsync();
 
-        container.Memories.Keys.OrderBy(key => key).ToArray().SequenceEqual(["long-term", "medium-term", "short-term"]).IsTrue();
+        container.Memories.Keys.OrderBy(key => key).ToArray().SequenceEqual([LongTerm, MediumTerm, ShortTerm]).IsTrue();
     }
 
     [Fact]
@@ -68,16 +69,16 @@ public sealed class JsonMemoryStoreTests : IDisposable
     {
         Directory.CreateDirectory(_rootPath);
         var filePath = Path.Combine(_rootPath, "memory.json");
-        await File.WriteAllTextAsync(filePath, """
+        await File.WriteAllTextAsync(filePath, $$"""
             {
-              "long-term": [
+              "{{LongTerm}}": [
                 {
                   "timestamp": "2026-03-11T15:04:05",
                   "text": "hello"
                 }
               ],
-              "medium-term": [],
-              "short-term": []
+              "{{MediumTerm}}": [],
+              "{{ShortTerm}}": []
             }
             """);
 
@@ -85,7 +86,7 @@ public sealed class JsonMemoryStoreTests : IDisposable
 
         var container = await store.LoadAsync();
 
-        var entry = container.Memories["long-term"][0];
+        var entry = container.Memories[LongTerm][0];
         entry.Text.Is("hello");
         entry.Tags.Count.Is(0);
         entry.Importance.Is(MemoryImportance.Normal);
@@ -96,17 +97,17 @@ public sealed class JsonMemoryStoreTests : IDisposable
     {
         Directory.CreateDirectory(_rootPath);
         var filePath = Path.Combine(_rootPath, "memory.json");
-        await File.WriteAllTextAsync(filePath, """
+        await File.WriteAllTextAsync(filePath, $$"""
             {
-              "long-term": [],
-              "medium-term": []
+              "{{LongTerm}}": [],
+              "{{MediumTerm}}": []
             }
             """);
 
         var store = CreateStore(filePath);
         var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => store.LoadAsync());
 
-        exception.Message.Contains("Missing required section 'short-term'", StringComparison.Ordinal).IsTrue();
+        exception.Message.Contains($"Missing required section '{ShortTerm}'", StringComparison.Ordinal).IsTrue();
     }
 
     [Fact]
@@ -114,18 +115,18 @@ public sealed class JsonMemoryStoreTests : IDisposable
     {
         Directory.CreateDirectory(_rootPath);
         var filePath = Path.Combine(_rootPath, "memory.json");
-        await File.WriteAllTextAsync(filePath, """
+        await File.WriteAllTextAsync(filePath, $$"""
             {
-              "long-term": [],
-              "medium-term": null,
-              "short-term": []
+              "{{LongTerm}}": [],
+              "{{MediumTerm}}": null,
+              "{{ShortTerm}}": []
             }
             """);
 
         var store = CreateStore(filePath);
         var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => store.LoadAsync());
 
-        exception.Message.Contains("Section 'medium-term' must be an array", StringComparison.Ordinal).IsTrue();
+        exception.Message.Contains($"Section '{MediumTerm}' must be an array", StringComparison.Ordinal).IsTrue();
     }
 
     [Theory]
@@ -138,9 +139,9 @@ public sealed class JsonMemoryStoreTests : IDisposable
         var escapedSectionName = JsonSerializer.Serialize(sectionName);
         await File.WriteAllTextAsync(filePath, $$"""
             {
-              "long-term": [],
-              "medium-term": [],
-              "short-term": [],
+              "{{LongTerm}}": [],
+              "{{MediumTerm}}": [],
+              "{{ShortTerm}}": [],
               {{escapedSectionName}}: []
             }
             """);
@@ -162,16 +163,16 @@ public sealed class JsonMemoryStoreTests : IDisposable
         {
             Memories = new Dictionary<string, List<MemoryEntry>>(StringComparer.Ordinal)
             {
-                ["short-term"] = [new(new DateTime(2026, 3, 11, 15, 4, 5), "hello")],
-                ["medium-term"] = [],
-                ["long-term"] = []
+                [ShortTerm] = [new(new DateTime(2026, 3, 11, 15, 4, 5), "hello")],
+                [MediumTerm] = [],
+                [LongTerm] = []
             }
         };
 
         await store.SaveAsync(container);
 
         var json = await File.ReadAllTextAsync(filePath);
-        json.Contains("\"short-term\"", StringComparison.Ordinal).IsTrue();
+        json.Contains($"\"{ShortTerm}\"", StringComparison.Ordinal).IsTrue();
         json.Contains("\"memories\"", StringComparison.Ordinal).IsFalse();
         json.Contains("\"timestamp\"", StringComparison.Ordinal).IsTrue();
         json.Contains("\"text\"", StringComparison.Ordinal).IsTrue();
@@ -190,9 +191,9 @@ public sealed class JsonMemoryStoreTests : IDisposable
         {
             Memories = new Dictionary<string, List<MemoryEntry>>(StringComparer.Ordinal)
             {
-                ["short-term"] = [],
-                ["medium-term"] = [],
-                ["long-term"] = [],
+                [ShortTerm] = [],
+                [MediumTerm] = [],
+                [LongTerm] = [],
                 ["project-x"] = [new(new DateTime(2026, 3, 11, 15, 4, 5), "hello")]
             }
         };
@@ -215,7 +216,7 @@ public sealed class JsonMemoryStoreTests : IDisposable
         {
             Memories = new Dictionary<string, List<MemoryEntry>>(StringComparer.Ordinal)
             {
-                ["short-term"] =
+                [ShortTerm] =
                 [
                     new(
                         new DateTime(2026, 3, 11, 15, 4, 5),
@@ -223,8 +224,8 @@ public sealed class JsonMemoryStoreTests : IDisposable
                         ["  Project-X  ", "project-x", "", "  ", "Research"],
                         MemoryImportance.High)
                 ],
-                ["medium-term"] = [],
-                ["long-term"] = []
+                [MediumTerm] = [],
+                [LongTerm] = []
             }
         };
 
@@ -232,7 +233,7 @@ public sealed class JsonMemoryStoreTests : IDisposable
 
         var loaded = await store.LoadAsync();
         var json = await File.ReadAllTextAsync(filePath);
-        var entry = loaded.Memories["short-term"][0];
+        var entry = loaded.Memories[ShortTerm][0];
 
         entry.Tags.SequenceEqual(["project-x", "research"]).IsTrue();
         entry.Importance.Is(MemoryImportance.High);
@@ -255,9 +256,9 @@ public sealed class JsonMemoryStoreTests : IDisposable
         {
             Memories = new Dictionary<string, List<MemoryEntry>>(StringComparer.Ordinal)
             {
-                ["short-term"] = [],
-                ["medium-term"] = [],
-                ["long-term"] = [],
+                [ShortTerm] = [],
+                [MediumTerm] = [],
+                [LongTerm] = [],
                 [sectionName] = []
             }
         };
@@ -283,7 +284,7 @@ public sealed class JsonMemoryStoreTests : IDisposable
         var container = await store.LoadAsync();
 
         File.Exists(filePath).IsTrue();
-        container.Memories.Keys.OrderBy(key => key).ToArray().SequenceEqual(["long-term", "medium-term", "short-term"]).IsTrue();
+        container.Memories.Keys.OrderBy(key => key).ToArray().SequenceEqual([LongTerm, MediumTerm, ShortTerm]).IsTrue();
     }
 
     public void Dispose()

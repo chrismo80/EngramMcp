@@ -14,12 +14,12 @@ public sealed record MemoryEntry
         Importance = importance ?? MemoryImportance.Normal;
     }
 
-    public DateTime Timestamp { get; init; }
+    public DateTime Timestamp { get; }
 
     public string Text
     {
         get => _text;
-        init => _text = ValidateText(value);
+        private init => _text = ValidateText(value);
     }
 
     public IReadOnlyList<string> Tags { get; init; }
