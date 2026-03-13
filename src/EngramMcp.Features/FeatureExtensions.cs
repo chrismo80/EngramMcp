@@ -13,11 +13,11 @@ public static class FeatureExtensions
         {
             var sb = new StringBuilder("# Memory");
 
-            foreach (var block in container.Memories.OrderBy(kvp => kvp.Key))
+            foreach (var block in container.Memories)
             {
                 sb.AppendLine().AppendLine($"## {block.Key}");
 
-                foreach(var memory in block.Value)
+                foreach (var memory in block.Value)
                     sb.AppendLine($"- {memory.Text}");
             }
 

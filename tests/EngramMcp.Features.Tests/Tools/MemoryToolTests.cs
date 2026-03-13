@@ -43,6 +43,29 @@ public sealed class MemoryToolTests
     }
 
     [Fact]
+    public async Task StoreMemoryTool_DelegatesToSharedServiceWithProvidedBucket()
+    {
+        var service = new SpyMemoryService();
+        var tool = new StoreMemoryTool(service);
+
+        await tool.ExecuteAsync("project-x", "remember this", CancellationToken.None);
+
+        service.StoredName.Is("project-x");
+        service.StoredText.Is("remember this");
+    }
+
+    [Fact]
+    public async Task StoreMemoryTool_AllowsBuiltInBucketNames()
+    {
+        var service = new SpyMemoryService();
+        var tool = new StoreMemoryTool(service);
+
+        await tool.ExecuteAsync("long-term", "remember this", CancellationToken.None);
+
+        service.StoredName.Is("long-term");
+    }
+
+    [Fact]
     public async Task RecallTool_ReturnsMarkdownWithOrderedSectionsAndNoTimestamps()
     {
         var expected = new MemoryContainer
@@ -61,6 +84,10 @@ public sealed class MemoryToolTests
         var result = await tool.ExecuteAsync(CancellationToken.None);
 
         result.IsNotEmpty();
+
+        Assert.True(
+            result.IndexOf("## long-term", StringComparison.Ordinal) < result.IndexOf("## short-term", StringComparison.Ordinal),
+            "Expected long-term section to appear before short-term section.");
     }
 
     private sealed class SpyMemoryService : IMemoryService
@@ -71,9 +98,9 @@ public sealed class MemoryToolTests
 
         public MemoryContainer RecallResult { get; init; } = new();
 
-        public Task StoreAsync(string memoryName, string text, CancellationToken cancellationToken = default)
+        public Task StoreAsync(string section, string text, CancellationToken cancellationToken = default)
         {
-            StoredName = memoryName;
+            StoredName = section;
             StoredText = text;
             return Task.CompletedTask;
         }

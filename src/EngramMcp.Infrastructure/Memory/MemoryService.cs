@@ -6,12 +6,12 @@ namespace EngramMcp.Infrastructure.Memory;
 public sealed class MemoryService(IMemoryCatalog memoryCatalog, IMemoryStore memoryStore)
     : IMemoryService
 {
-    public async Task StoreAsync(string memoryName, string text, CancellationToken cancellationToken = default)
+    public async Task StoreAsync(string section, string text, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(text))
             throw new ArgumentException("Memory text must not be null, empty, or whitespace.", nameof(text));
 
-        var memory = memoryCatalog.GetByName(memoryName);
+        var memory = memoryCatalog.GetByName(section);
 
         await memoryStore
             .UpdateAsync(container => memory.Store(container, new MemoryEntry(CreateTimestamp(), text)), cancellationToken)
@@ -21,10 +21,10 @@ public sealed class MemoryService(IMemoryCatalog memoryCatalog, IMemoryStore mem
     public async Task<MemoryContainer> RecallAsync(CancellationToken cancellationToken = default)
     {
         var container = await memoryStore.LoadAsync(cancellationToken).ConfigureAwait(false);
-        
+
         var recalled = new Dictionary<string, List<MemoryEntry>>(StringComparer.Ordinal);
 
-        foreach (var memory in memoryCatalog.Memories)
+        foreach (var memory in memoryCatalog.GetRecallOrder(container))
             recalled[memory.Name] = [.. memory.Read(container)];
 
         return new MemoryContainer { Memories = recalled };
