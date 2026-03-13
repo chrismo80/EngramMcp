@@ -64,6 +64,34 @@ public sealed class JsonMemoryStoreTests : IDisposable
     }
 
     [Fact]
+    public async Task LoadAsync_LoadsLegacyEntriesWithoutMetadata()
+    {
+        Directory.CreateDirectory(_rootPath);
+        var filePath = Path.Combine(_rootPath, "memory.json");
+        await File.WriteAllTextAsync(filePath, """
+            {
+              "long-term": [
+                {
+                  "timestamp": "2026-03-11T15:04:05",
+                  "text": "hello"
+                }
+              ],
+              "medium-term": [],
+              "short-term": []
+            }
+            """);
+
+        var store = CreateStore(filePath);
+
+        var container = await store.LoadAsync();
+
+        var entry = container.Memories["long-term"][0];
+        entry.Text.Is("hello");
+        entry.Tags.Count.Is(0);
+        entry.Importance.Is(MemoryImportance.Normal);
+    }
+
+    [Fact]
     public async Task LoadAsync_ThrowsWhenRequiredSectionIsMissing()
     {
         Directory.CreateDirectory(_rootPath);
@@ -147,6 +175,8 @@ public sealed class JsonMemoryStoreTests : IDisposable
         json.Contains("\"memories\"", StringComparison.Ordinal).IsFalse();
         json.Contains("\"timestamp\"", StringComparison.Ordinal).IsTrue();
         json.Contains("\"text\"", StringComparison.Ordinal).IsTrue();
+        json.Contains("\"tags\"", StringComparison.Ordinal).IsFalse();
+        json.Contains("\"importance\"", StringComparison.Ordinal).IsFalse();
     }
 
     [Fact]
@@ -172,6 +202,44 @@ public sealed class JsonMemoryStoreTests : IDisposable
 
         loaded.Memories.ContainsKey("project-x").IsTrue();
         loaded.Memories["project-x"][0].Text.Is("hello");
+    }
+
+    [Fact]
+    public async Task SaveAsync_RoundTripsMetadataUsingNormalizedTags()
+    {
+        var filePath = Path.Combine(_rootPath, "memory.json");
+        var store = CreateStore(filePath);
+        await store.EnsureInitializedAsync();
+
+        var container = new MemoryContainer
+        {
+            Memories = new Dictionary<string, List<MemoryEntry>>(StringComparer.Ordinal)
+            {
+                ["short-term"] =
+                [
+                    new(
+                        new DateTime(2026, 3, 11, 15, 4, 5),
+                        "hello",
+                        ["  Project-X  ", "project-x", "", "  ", "Research"],
+                        MemoryImportance.High)
+                ],
+                ["medium-term"] = [],
+                ["long-term"] = []
+            }
+        };
+
+        await store.SaveAsync(container);
+
+        var loaded = await store.LoadAsync();
+        var json = await File.ReadAllTextAsync(filePath);
+        var entry = loaded.Memories["short-term"][0];
+
+        entry.Tags.SequenceEqual(["project-x", "research"]).IsTrue();
+        entry.Importance.Is(MemoryImportance.High);
+        json.Contains("\"tags\"", StringComparison.Ordinal).IsTrue();
+        json.Contains("\"project-x\"", StringComparison.Ordinal).IsTrue();
+        json.Contains("\"research\"", StringComparison.Ordinal).IsTrue();
+        json.Contains("\"importance\": \"high\"", StringComparison.Ordinal).IsTrue();
     }
 
     [Theory]

@@ -12,6 +12,11 @@ public sealed class JsonMemoryStore : IMemoryStore
         WriteIndented = true
     };
 
+    static JsonMemoryStore()
+    {
+        SerializerOptions.Converters.Add(new MemoryEntryJsonConverter());
+    }
+
     private readonly string _filePath;
     private readonly string[] _expectedMemoryNames;
     private readonly SemaphoreSlim _gate = new(1, 1);

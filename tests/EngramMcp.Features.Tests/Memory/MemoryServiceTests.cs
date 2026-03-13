@@ -42,6 +42,8 @@ public sealed class MemoryServiceTests
         memoryStore.Container.Memories["short-term"].Count.Is(2);
         memoryStore.Container.Memories["short-term"][0].Text.Is("duplicate");
         memoryStore.Container.Memories["short-term"][1].Text.Is("duplicate");
+        memoryStore.Container.Memories["short-term"][0].Tags.Count.Is(0);
+        memoryStore.Container.Memories["short-term"][0].Importance.Is(MemoryImportance.Normal);
         memoryStore.Container.Memories["medium-term"].Count.Is(1);
     }
 
@@ -247,7 +249,7 @@ public sealed class MemoryServiceTests
             {
                 Memories = container.Memories.ToDictionary(
                     pair => pair.Key,
-                    pair => pair.Value.Select(entry => new MemoryEntry(entry.Timestamp, entry.Text)).ToList(),
+                    pair => pair.Value.Select(entry => new MemoryEntry(entry.Timestamp, entry.Text, entry.Tags, entry.Importance)).ToList(),
                     StringComparer.Ordinal)
             };
         }
