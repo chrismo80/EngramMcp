@@ -215,6 +215,9 @@ public sealed class JsonMemoryStore : IMemoryStore
 
         foreach (var (memoryName, entries) in memories)
         {
+            if (string.IsNullOrWhiteSpace(memoryName))
+                throw new InvalidOperationException("Memory file has invalid structure. Section names must not be empty or whitespace.");
+
             if (entries is null)
                 throw new InvalidOperationException($"Memory file has invalid structure. Section '{memoryName}' must be an array.");
         }

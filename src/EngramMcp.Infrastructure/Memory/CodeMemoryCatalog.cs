@@ -36,11 +36,6 @@ public sealed class CodeMemoryCatalog : IMemoryCatalog
     {
         ArgumentNullException.ThrowIfNull(container);
 
-        var customMemories = container.Memories.Keys
-            .Where(name => !_fixedMemories.ContainsKey(name))
-            .OrderBy(name => name, StringComparer.Ordinal)
-            .Select(GetByName);
-
-        return [.. Memories, .. customMemories];
+        return Memories;
     }
 }

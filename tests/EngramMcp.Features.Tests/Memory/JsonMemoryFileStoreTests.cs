@@ -1,6 +1,7 @@
 using EngramMcp.Core;
 using EngramMcp.Infrastructure.Memory;
 using Is.Assertions;
+using System.Text.Json;
 using Xunit;
 
 namespace EngramMcp.Features.Tests.Memory;
@@ -99,6 +100,29 @@ public sealed class JsonMemoryStoreTests : IDisposable
         exception.Message.Contains("Section 'medium-term' must be an array", StringComparison.Ordinal).IsTrue();
     }
 
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public async Task LoadAsync_ThrowsWhenCustomSectionNameIsEmptyOrWhitespace(string sectionName)
+    {
+        Directory.CreateDirectory(_rootPath);
+        var filePath = Path.Combine(_rootPath, "memory.json");
+        var escapedSectionName = JsonSerializer.Serialize(sectionName);
+        await File.WriteAllTextAsync(filePath, $$"""
+            {
+              "long-term": [],
+              "medium-term": [],
+              "short-term": [],
+              {{escapedSectionName}}: []
+            }
+            """);
+
+        var store = CreateStore(filePath);
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => store.LoadAsync());
+
+        exception.Message.Contains("Section names must not be empty or whitespace", StringComparison.Ordinal).IsTrue();
+    }
+
     [Fact]
     public async Task SaveAsync_PersistsTopLevelNameKeyedSections()
     {
@@ -148,6 +172,31 @@ public sealed class JsonMemoryStoreTests : IDisposable
 
         loaded.Memories.ContainsKey("project-x").IsTrue();
         loaded.Memories["project-x"][0].Text.Is("hello");
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public async Task SaveAsync_ThrowsWhenCustomSectionNameIsEmptyOrWhitespace(string sectionName)
+    {
+        var filePath = Path.Combine(_rootPath, "memory.json");
+        var store = CreateStore(filePath);
+        await store.EnsureInitializedAsync();
+
+        var container = new MemoryContainer
+        {
+            Memories = new Dictionary<string, List<MemoryEntry>>(StringComparer.Ordinal)
+            {
+                ["short-term"] = [],
+                ["medium-term"] = [],
+                ["long-term"] = [],
+                [sectionName] = []
+            }
+        };
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => store.SaveAsync(container));
+
+        exception.Message.Contains("Section names must not be empty or whitespace", StringComparison.Ordinal).IsTrue();
     }
 
     [Fact]

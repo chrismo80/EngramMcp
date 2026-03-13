@@ -133,7 +133,7 @@ public sealed class MemoryServiceTests
     }
 
     [Fact]
-    public async Task RecallAsync_ReturnsFixedBucketsBeforeSortedCustomBuckets()
+    public async Task RecallAsync_ReturnsOnlyFixedBucketsInStableOrder()
     {
         var service = new MemoryService(new CodeMemoryCatalog(), new InMemoryStore(CreateContainer(new Dictionary<string, List<MemoryEntry>>(StringComparer.Ordinal)
         {
@@ -146,7 +146,9 @@ public sealed class MemoryServiceTests
 
         var recalled = await service.RecallAsync();
 
-        recalled.Memories.Keys.ToArray().SequenceEqual(["long-term", "medium-term", "short-term", "a-first", "z-last"]).IsTrue();
+        recalled.Memories.Keys.ToArray().SequenceEqual(["long-term", "medium-term", "short-term"]).IsTrue();
+        recalled.Memories.ContainsKey("a-first").IsFalse();
+        recalled.Memories.ContainsKey("z-last").IsFalse();
     }
 
     private static MemoryContainer CreateContainer(Dictionary<string, List<MemoryEntry>>? memories = null)
