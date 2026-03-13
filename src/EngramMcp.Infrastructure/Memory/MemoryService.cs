@@ -18,6 +18,22 @@ public sealed class MemoryService(IMemoryCatalog memoryCatalog, IMemoryStore mem
             .ConfigureAwait(false);
     }
 
+    public async Task<MemoryContainer> ReadAsync(string section, CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(section);
+
+        var container = await memoryStore.LoadAsync(cancellationToken).ConfigureAwait(false);
+        var fixedMemory = memoryCatalog.Memories.FirstOrDefault(memory => string.Equals(memory.Name, section, StringComparison.Ordinal));
+
+        if (fixedMemory is not null)
+            return CreateSectionDocument(section, container.Memories.TryGetValue(section, out var entries) ? entries : []);
+
+        if (container.Memories.TryGetValue(section, out var customEntries))
+            return CreateSectionDocument(section, customEntries);
+
+        throw new KeyNotFoundException($"Memory section '{section}' was not found.");
+    }
+
     public async Task<MemoryContainer> RecallAsync(CancellationToken cancellationToken = default)
     {
         var container = await memoryStore.LoadAsync(cancellationToken).ConfigureAwait(false);
@@ -28,6 +44,17 @@ public sealed class MemoryService(IMemoryCatalog memoryCatalog, IMemoryStore mem
             recalled[memory.Name] = [.. memory.Read(container)];
 
         return new MemoryContainer { Memories = recalled };
+    }
+
+    private static MemoryContainer CreateSectionDocument(string section, IReadOnlyList<MemoryEntry> entries)
+    {
+        return new MemoryContainer
+        {
+            Memories = new Dictionary<string, List<MemoryEntry>>(StringComparer.Ordinal)
+            {
+                [section] = [.. entries]
+            }
+        };
     }
 
     private static DateTime CreateTimestamp() => DateTime.SpecifyKind(DateTime.Now, DateTimeKind.Local);

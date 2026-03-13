@@ -90,19 +90,90 @@ public sealed class MemoryToolTests
             "Expected long-term section to appear before short-term section.");
     }
 
+    [Fact]
+    public async Task ReadMemoryTool_ReturnsMarkdownForBuiltInSectionOnly()
+    {
+        var service = new SpyMemoryService
+        {
+            ReadResult = new MemoryContainer
+            {
+                Memories = new Dictionary<string, List<MemoryEntry>>(StringComparer.Ordinal)
+                {
+                    ["short-term"] = [new MemoryEntry(new DateTime(2026, 3, 11, 12, 0, 0), "short")]
+                }
+            }
+        };
+        var tool = new ReadMemoryTool(service);
+
+        var result = await tool.ExecuteAsync("short-term", CancellationToken.None);
+
+        service.ReadSection.Is("short-term");
+        result.Is("# Memory\r\n## short-term\r\n- short\r\n");
+    }
+
+    [Fact]
+    public async Task ReadMemoryTool_ReturnsMarkdownForCustomSectionOnly()
+    {
+        var service = new SpyMemoryService
+        {
+            ReadResult = new MemoryContainer
+            {
+                Memories = new Dictionary<string, List<MemoryEntry>>(StringComparer.Ordinal)
+                {
+                    ["project-x"] = [new MemoryEntry(new DateTime(2026, 3, 11, 12, 0, 0), "custom")]
+                }
+            }
+        };
+        var tool = new ReadMemoryTool(service);
+
+        var result = await tool.ExecuteAsync("project-x", CancellationToken.None);
+
+        service.ReadSection.Is("project-x");
+        result.Is("# Memory\r\n## project-x\r\n- custom\r\n");
+    }
+
+    [Fact]
+    public async Task ReadMemoryTool_PropagatesMissingSectionFailure()
+    {
+        var service = new SpyMemoryService
+        {
+            ReadException = new KeyNotFoundException("Memory section 'project-x' was not found.")
+        };
+        var tool = new ReadMemoryTool(service);
+
+        var exception = await Assert.ThrowsAsync<KeyNotFoundException>(() => tool.ExecuteAsync("project-x", CancellationToken.None));
+
+        exception.Message.Is("Memory section 'project-x' was not found.");
+    }
+
     private sealed class SpyMemoryService : IMemoryService
     {
         public string? StoredName { get; private set; }
 
         public string? StoredText { get; private set; }
 
+        public string? ReadSection { get; private set; }
+
         public MemoryContainer RecallResult { get; init; } = new();
+
+        public MemoryContainer ReadResult { get; init; } = new();
+
+        public Exception? ReadException { get; init; }
 
         public Task StoreAsync(string section, string text, CancellationToken cancellationToken = default)
         {
             StoredName = section;
             StoredText = text;
             return Task.CompletedTask;
+        }
+
+        public Task<MemoryContainer> ReadAsync(string section, CancellationToken cancellationToken = default)
+        {
+            ReadSection = section;
+
+            return ReadException is null
+                ? Task.FromResult(ReadResult)
+                : Task.FromException<MemoryContainer>(ReadException);
         }
 
         public Task<MemoryContainer> RecallAsync(CancellationToken cancellationToken = default)

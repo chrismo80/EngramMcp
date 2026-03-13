@@ -116,6 +116,49 @@ public sealed class MemoryServiceTests
     }
 
     [Fact]
+    public async Task ReadAsync_ReturnsBuiltInSectionOnly()
+    {
+        var service = new MemoryService(new CodeMemoryCatalog(), new InMemoryStore(CreateContainer(new Dictionary<string, List<MemoryEntry>>(StringComparer.Ordinal)
+        {
+            ["short-term"] = [new(new DateTime(2026, 3, 11, 10, 0, 0), "short")],
+            ["medium-term"] = [new(new DateTime(2026, 3, 11, 11, 0, 0), "medium")],
+            ["long-term"] = []
+        })));
+
+        var result = await service.ReadAsync("short-term");
+
+        result.Memories.Keys.ToArray().SequenceEqual(["short-term"]).IsTrue();
+        result.Memories["short-term"].Select(entry => entry.Text).ToArray().SequenceEqual(["short"]).IsTrue();
+    }
+
+    [Fact]
+    public async Task ReadAsync_ReturnsCustomSectionOnly()
+    {
+        var service = new MemoryService(new CodeMemoryCatalog(), new InMemoryStore(CreateContainer(new Dictionary<string, List<MemoryEntry>>(StringComparer.Ordinal)
+        {
+            ["short-term"] = [],
+            ["medium-term"] = [],
+            ["long-term"] = [],
+            ["project-x"] = [new(new DateTime(2026, 3, 11, 12, 0, 0), "custom")]
+        })));
+
+        var result = await service.ReadAsync("project-x");
+
+        result.Memories.Keys.ToArray().SequenceEqual(["project-x"]).IsTrue();
+        result.Memories["project-x"].Select(entry => entry.Text).ToArray().SequenceEqual(["custom"]).IsTrue();
+    }
+
+    [Fact]
+    public async Task ReadAsync_ThrowsWhenSectionDoesNotExist()
+    {
+        var service = new MemoryService(new CodeMemoryCatalog(), new InMemoryStore(CreateContainer()));
+
+        var exception = await Assert.ThrowsAsync<KeyNotFoundException>(() => service.ReadAsync("project-x"));
+
+        exception.Message.Is("Memory section 'project-x' was not found.");
+    }
+
+    [Fact]
     public async Task RecallAsync_ReturnsConfiguredSectionsSeparatedByName()
     {
         var service = new MemoryService(new CodeMemoryCatalog(), new InMemoryStore(CreateContainer(new Dictionary<string, List<MemoryEntry>>(StringComparer.Ordinal)
