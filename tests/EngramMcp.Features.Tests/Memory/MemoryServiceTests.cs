@@ -203,6 +203,103 @@ public sealed class MemoryServiceTests
         recalled.Memories.ContainsKey("z-last").IsFalse();
     }
 
+    [Fact]
+    public async Task SearchAsync_MatchesSectionNameAcrossBuiltInAndCustomSections()
+    {
+        var service = new MemoryService(new CodeMemoryCatalog(), new InMemoryStore(CreateContainer(new Dictionary<string, List<MemoryEntry>>(StringComparer.Ordinal)
+        {
+            ["short-term"] =
+            [
+                new(new DateTime(2026, 3, 11, 10, 0, 0), "first short")
+            ],
+            ["medium-term"] = [],
+            ["long-term"] = [],
+            ["project-shortcuts"] =
+            [
+                new(new DateTime(2026, 3, 11, 11, 0, 0), "custom short")
+            ]
+        })));
+
+        var results = await service.SearchAsync("short");
+
+        results.Select(result => result.Section).ToArray().SequenceEqual(["project-shortcuts", "short-term"]).IsTrue();
+    }
+
+    [Fact]
+    public async Task SearchAsync_MatchesTagsCaseInsensitively()
+    {
+        var service = new MemoryService(new CodeMemoryCatalog(), new InMemoryStore(CreateContainer(new Dictionary<string, List<MemoryEntry>>(StringComparer.Ordinal)
+        {
+            ["short-term"] =
+            [
+                new(new DateTime(2026, 3, 11, 10, 0, 0), "entry", ["Docker"])
+            ],
+            ["medium-term"] = [],
+            ["long-term"] = []
+        })));
+
+        var results = await service.SearchAsync("DOCK");
+
+        results.Count.Is(1);
+        results[0].Entry.Text.Is("entry");
+    }
+
+    [Fact]
+    public async Task SearchAsync_MatchesEntryTextCaseInsensitively()
+    {
+        var service = new MemoryService(new CodeMemoryCatalog(), new InMemoryStore(CreateContainer(new Dictionary<string, List<MemoryEntry>>(StringComparer.Ordinal)
+        {
+            ["short-term"] =
+            [
+                new(new DateTime(2026, 3, 11, 10, 0, 0), "Workspace drift is happening")
+            ],
+            ["medium-term"] = [],
+            ["long-term"] = []
+        })));
+
+        var results = await service.SearchAsync("workspace DRIFT");
+
+        results.Count.Is(1);
+        results[0].Section.Is("short-term");
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public async Task SearchAsync_RejectsEmptyOrWhitespaceQuery(string query)
+    {
+        var service = new MemoryService(new CodeMemoryCatalog(), new InMemoryStore(CreateContainer()));
+
+        var exception = await Assert.ThrowsAsync<ArgumentException>(() => service.SearchAsync(query));
+
+        exception.Message.Is("Search query must not be null, empty, or whitespace. (Parameter 'query')");
+    }
+
+    [Fact]
+    public async Task SearchAsync_SortsByImportanceDescendingThenTimestampDescending()
+    {
+        var service = new MemoryService(new CodeMemoryCatalog(), new InMemoryStore(CreateContainer(new Dictionary<string, List<MemoryEntry>>(StringComparer.Ordinal)
+        {
+            ["short-term"] =
+            [
+                new(new DateTime(2026, 3, 11, 8, 0, 0), "match", importance: MemoryImportance.High),
+                new(new DateTime(2026, 3, 11, 12, 0, 0), "match", importance: MemoryImportance.Normal),
+                new(new DateTime(2026, 3, 11, 10, 0, 0), "match", importance: MemoryImportance.High)
+            ],
+            ["medium-term"] = [],
+            ["long-term"] = []
+        })));
+
+        var results = await service.SearchAsync("match");
+
+        results.Select(result => result.Entry.Timestamp).ToArray().SequenceEqual(
+            [
+                new DateTime(2026, 3, 11, 10, 0, 0),
+                new DateTime(2026, 3, 11, 8, 0, 0),
+                new DateTime(2026, 3, 11, 12, 0, 0)
+            ]).IsTrue();
+    }
+
     private static MemoryContainer CreateContainer(Dictionary<string, List<MemoryEntry>>? memories = null)
     {
         return new MemoryContainer
@@ -250,7 +347,8 @@ public sealed class MemoryServiceTests
                 Memories = container.Memories.ToDictionary(
                     pair => pair.Key,
                     pair => pair.Value.Select(entry => new MemoryEntry(entry.Timestamp, entry.Text, entry.Tags, entry.Importance)).ToList(),
-                    StringComparer.Ordinal)
+                    StringComparer.Ordinal),
+                CustomSections = [.. container.CustomSections.Select(summary => new MemorySectionSummary(summary.Name, summary.EntryCount))]
             };
         }
     }

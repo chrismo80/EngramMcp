@@ -1,6 +1,7 @@
 using EngramMcp.Core;
 using System.Reflection;
 using System.Text;
+using System.Globalization;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace EngramMcp.Features;
@@ -29,6 +30,34 @@ public static class FeatureExtensions
                     .OrderByDescending(summary => summary.EntryCount)
                     .ThenBy(summary => summary.Name, StringComparer.Ordinal))
                     sb.AppendLine($"- {section.Name} ({section.EntryCount})");
+            }
+
+            return sb.ToString();
+        }
+    }
+
+    extension(IReadOnlyList<MemorySearchResult> results)
+    {
+        internal string ToMarkdown()
+        {
+            var sb = new StringBuilder("# Memory Search Results");
+
+            if (results.Count == 0)
+                return sb.AppendLine().AppendLine("No matches found.").ToString();
+
+            for (var index = 0; index < results.Count; index++)
+            {
+                var result = results[index];
+
+                sb.AppendLine()
+                    .AppendLine($"## Result {index + 1}")
+                    .AppendLine($"Section: {result.Section}")
+                    .AppendLine($"Importance: {result.Entry.Importance.ToSerializedValue()}")
+                    .AppendLine($"Timestamp: {result.Entry.Timestamp.ToString("O", CultureInfo.InvariantCulture)}")
+                    .AppendLine($"Text: {result.Entry.Text}");
+
+                if (result.Entry.Tags.Count > 0)
+                    sb.AppendLine($"Tags: {string.Join(", ", result.Entry.Tags)}");
             }
 
             return sb.ToString();

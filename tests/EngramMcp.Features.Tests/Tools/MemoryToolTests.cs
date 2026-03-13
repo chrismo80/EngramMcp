@@ -207,6 +207,80 @@ public sealed class MemoryToolTests
         exception.Message.Is("Memory section 'project-x' was not found. Available sections: long-term, medium-term, short-term, project-a.");
     }
 
+    [Fact]
+    public async Task SearchMemoriesTool_ReturnsHumanReadableResultsWithSectionContext()
+    {
+        var service = new SpyMemoryService
+        {
+            SearchResult =
+            [
+                new MemorySearchResult(
+                    "project-x",
+                    new MemoryEntry(new DateTime(2026, 3, 11, 12, 0, 0, DateTimeKind.Utc), "docker reminder", ["ops"], MemoryImportance.High))
+            ]
+        };
+        var tool = new SearchMemoriesTool(service);
+
+        var result = await tool.ExecuteAsync("docker", CancellationToken.None);
+
+        service.SearchQuery.Is("docker");
+        result.Is(
+            "# Memory Search Results\r\n" +
+            "## Result 1\r\n" +
+            "Section: project-x\r\n" +
+            "Importance: high\r\n" +
+            "Timestamp: 2026-03-11T12:00:00.0000000Z\r\n" +
+            "Text: docker reminder\r\n" +
+            "Tags: ops\r\n");
+    }
+
+    [Fact]
+    public async Task SearchMemoriesTool_ReturnsNoMatchesMessage()
+    {
+        var service = new SpyMemoryService();
+        var tool = new SearchMemoriesTool(service);
+
+        var result = await tool.ExecuteAsync("missing", CancellationToken.None);
+
+        result.Is("# Memory Search Results\r\nNo matches found.\r\n");
+    }
+
+    [Fact]
+    public async Task SearchMemoriesTool_PropagatesInvalidQueryFailure()
+    {
+        var service = new SpyMemoryService
+        {
+            SearchException = new ArgumentException("Search query must not be null, empty, or whitespace.", "query")
+        };
+        var tool = new SearchMemoriesTool(service);
+
+        var exception = await Assert.ThrowsAsync<ArgumentException>(() => tool.ExecuteAsync("   ", CancellationToken.None));
+
+        exception.Message.Is("Search query must not be null, empty, or whitespace. (Parameter 'query')");
+    }
+
+    [Fact]
+    public async Task RecallTool_RemainsUnchanged()
+    {
+        var service = new SpyMemoryService
+        {
+            RecallResult = new MemoryContainer
+            {
+                Memories = new Dictionary<string, List<MemoryEntry>>(StringComparer.Ordinal)
+                {
+                    ["long-term"] = [],
+                    ["medium-term"] = [],
+                    ["short-term"] = [new MemoryEntry(new DateTime(2026, 3, 11, 12, 0, 0), "short")]
+                }
+            }
+        };
+        var tool = new RecallTool(service);
+
+        var result = await tool.ExecuteAsync(CancellationToken.None);
+
+        result.Is("# Memory\r\n## long-term\r\n\r\n## medium-term\r\n\r\n## short-term\r\n- short\r\n");
+    }
+
     private sealed class SpyMemoryService : IMemoryService
     {
         public string? StoredName { get; private set; }
@@ -215,11 +289,17 @@ public sealed class MemoryToolTests
 
         public string? ReadSection { get; private set; }
 
+        public string? SearchQuery { get; private set; }
+
         public MemoryContainer RecallResult { get; init; } = new();
 
         public MemoryContainer ReadResult { get; init; } = new();
 
+        public IReadOnlyList<MemorySearchResult> SearchResult { get; init; } = [];
+
         public Exception? ReadException { get; init; }
+
+        public Exception? SearchException { get; init; }
 
         public Task StoreAsync(string section, string text, CancellationToken cancellationToken = default)
         {
@@ -240,6 +320,15 @@ public sealed class MemoryToolTests
         public Task<MemoryContainer> RecallAsync(CancellationToken cancellationToken = default)
         {
             return Task.FromResult(RecallResult);
+        }
+
+        public Task<IReadOnlyList<MemorySearchResult>> SearchAsync(string query, CancellationToken cancellationToken = default)
+        {
+            SearchQuery = query;
+
+            return SearchException is null
+                ? Task.FromResult(SearchResult)
+                : Task.FromException<IReadOnlyList<MemorySearchResult>>(SearchException);
         }
     }
 }

@@ -50,6 +50,21 @@ public sealed class MemoryService(IMemoryCatalog memoryCatalog, IMemoryStore mem
         };
     }
 
+    public async Task<IReadOnlyList<MemorySearchResult>> SearchAsync(string query, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(query))
+            throw new ArgumentException("Search query must not be null, empty, or whitespace.", nameof(query));
+
+        var container = await memoryStore.LoadAsync(cancellationToken).ConfigureAwait(false);
+
+        return container.Memories
+            .SelectMany(section => section.Value.Select(entry => new MemorySearchResult(section.Key, entry)))
+            .Where(result => Matches(result, query))
+            .OrderByDescending(result => result.Entry.Importance)
+            .ThenByDescending(result => result.Entry.Timestamp)
+            .ToList();
+    }
+
     private static MemoryContainer CreateSectionDocument(string section, IReadOnlyList<MemoryEntry> entries)
     {
         return new MemoryContainer
@@ -59,6 +74,13 @@ public sealed class MemoryService(IMemoryCatalog memoryCatalog, IMemoryStore mem
                 [section] = [.. entries]
             }
         };
+    }
+
+    private static bool Matches(MemorySearchResult result, string query)
+    {
+        return result.Section.Contains(query, StringComparison.OrdinalIgnoreCase)
+            || result.Entry.Text.Contains(query, StringComparison.OrdinalIgnoreCase)
+            || result.Entry.Tags.Any(tag => tag.Contains(query, StringComparison.OrdinalIgnoreCase));
     }
 
     private string GetAvailableSectionNames(MemoryContainer container)
