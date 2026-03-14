@@ -33,7 +33,7 @@ public sealed class MemoryBehaviorTests
     }
 
     [Fact]
-    public void Store_AppendsEntry_AndEvictsOldestWhenCapacityIsExceeded()
+    public void Store_AppendsEntry_AndEvictsOldestWithinSameImportanceWhenCapacityIsExceeded()
     {
         var section = new Core.MemorySection("shortTerm", 2);
         var container = new MemoryContainer
@@ -54,6 +54,29 @@ public sealed class MemoryBehaviorTests
         entries.Count.Is(2);
         entries[0].Text.Is("second");
         entries[1].Text.Is("third");
+    }
+
+    [Fact]
+    public void Store_EvictsLowestImportanceBeforeOlderHigherImportance()
+    {
+        var section = new Core.MemorySection("shortTerm", 2);
+        var container = new MemoryContainer
+        {
+            Memories = new Dictionary<string, List<MemoryEntry>>(StringComparer.Ordinal)
+            {
+                ["shortTerm"] =
+                [
+                    new(new DateTime(2026, 3, 11, 8, 0, 0), "high", importance: MemoryImportance.High),
+                    new(new DateTime(2026, 3, 11, 9, 0, 0), "low", importance: MemoryImportance.Low)
+                ]
+            }
+        };
+
+        section.Store(container, new MemoryEntry(new DateTime(2026, 3, 11, 10, 0, 0), "normal", importance: MemoryImportance.Normal));
+
+        var entries = section.Read(container);
+        entries.Count.Is(2);
+        entries.Select(entry => entry.Text).ToArray().SequenceEqual(["high", "normal"]).IsTrue();
     }
 
     [Fact]

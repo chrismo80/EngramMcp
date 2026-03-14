@@ -14,8 +14,10 @@ public sealed class StoreMediumTermTool(IMemoryService memoryService) : Tool
         string text,
         [Description("Optional normalized tags to store with this memory entry.")]
         IReadOnlyList<string>? tags = null,
+        [Description("Optional importance level for this memory entry. Defaults to normal.")]
+        string? importance = null,
         CancellationToken cancellationToken = default)
     {
-        return memoryService.StoreAsync(BuiltInMemorySections.MediumTerm, text, tags, cancellationToken);
+        return memoryService.StoreAsync(BuiltInMemorySections.MediumTerm, text, tags, MemoryImportanceToolParser.ParseOrDefault(importance), cancellationToken);
     }
 }

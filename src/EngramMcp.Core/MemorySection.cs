@@ -14,7 +14,7 @@ public sealed class MemorySection(string name, int capacity)
         entries.Add(entry);
 
         while (entries.Count > Capacity)
-            entries.RemoveAt(0);
+            entries.RemoveAt(MemoryRetention.GetNextEntryIndexToEvict(entries));
     }
 
     public IReadOnlyList<MemoryEntry> Read(MemoryContainer container)

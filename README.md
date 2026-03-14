@@ -67,11 +67,11 @@ EngramMcp uses three built-in memory sections with code-defined capacities:
 - `medium-term` - 10 entries
 - `short-term` - 5 entries
 
-In addition, agents can create custom sections through `store(section, text, tags?)`. Custom sections are created lazily on first write and currently use a shared default capacity of 20 entries.
+In addition, agents can create custom sections through `store(section, text, tags?, importance?)`. Custom sections are created lazily on first write and currently use a shared default capacity of 20 entries.
 
 Built-in sections appear first in `recall`. Custom sections are listed afterward as discoverable section names with entry counts, but their contents are not dumped into the default recall output.
 
-When a section exceeds its capacity, the oldest entries are discarded.
+When a section exceeds its capacity, retention is applied globally within that section: lower-importance entries are discarded before higher-importance entries, and ties are broken by oldest timestamp first.
 
 Each stored entry contains:
 
@@ -132,7 +132,7 @@ Example file shape:
 
 `search` returns individual matching entries, sorted by `importance` descending and then `timestamp` descending.
 
-All write tools support optional `tags`, including `store(section, text, tags?)` and the built-in section writers.
+All write tools support optional `tags` and `importance`, including `store(section, text, tags?, importance?)` and the built-in section writers.
 
 
 # System Prompt

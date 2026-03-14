@@ -6,7 +6,12 @@ namespace EngramMcp.Infrastructure.Memory;
 public sealed class MemoryService(IMemoryCatalog memoryCatalog, IMemoryStore memoryStore)
     : IMemoryService
 {
-    public Task StoreAsync(string section, string text, IReadOnlyList<string>? tags = null, CancellationToken cancellationToken = default)
+    public Task StoreAsync(
+        string section,
+        string text,
+        IReadOnlyList<string>? tags = null,
+        MemoryImportance? importance = null,
+        CancellationToken cancellationToken = default)
     {
         var normalizedSection = NormalizeSectionIdentifier(section);
 
@@ -15,7 +20,7 @@ public sealed class MemoryService(IMemoryCatalog memoryCatalog, IMemoryStore mem
             {
                 var resolvedSection = ResolveSectionName(normalizedSection, container);
                 var memory = memoryCatalog.GetByName(resolvedSection);
-                memory.Store(container, new MemoryEntry(CreateTimestamp(), text, tags));
+                memory.Store(container, new MemoryEntry(CreateTimestamp(), text, tags, importance));
             },
             cancellationToken);
     }

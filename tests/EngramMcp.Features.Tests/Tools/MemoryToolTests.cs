@@ -17,10 +17,11 @@ public sealed class MemoryToolTests
         var service = new SpyMemoryService();
         var tool = new StoreShortTermTool(service);
 
-        await tool.ExecuteAsync("remember this", cancellationToken: CancellationToken.None);
+        await tool.ExecuteAsync("remember this", importance: "high", cancellationToken: CancellationToken.None);
 
         service.StoredName.Is(ShortTerm);
         service.StoredText.Is("remember this");
+        service.StoredImportance.Is(MemoryImportance.High);
     }
 
     [Fact]
@@ -51,11 +52,34 @@ public sealed class MemoryToolTests
         var service = new SpyMemoryService();
         var tool = new StoreTool(service);
 
-        await tool.ExecuteAsync("project-x", "remember this", ["Docker", "ops", "docker", "   "], CancellationToken.None);
+        await tool.ExecuteAsync("project-x", "remember this", ["Docker", "ops", "docker", "   "], "low", CancellationToken.None);
 
         service.StoredName.Is("project-x");
         service.StoredText.Is("remember this");
         service.StoredTags!.SequenceEqual(["Docker", "ops", "docker", "   "]).IsTrue();
+        service.StoredImportance.Is(MemoryImportance.Low);
+    }
+
+    [Fact]
+    public async Task StoreTool_OmittedImportance_PreservesServiceDefault()
+    {
+        var service = new SpyMemoryService();
+        var tool = new StoreTool(service);
+
+        await tool.ExecuteAsync("project-x", "remember this", cancellationToken: CancellationToken.None);
+
+        service.StoredImportance.IsNull();
+    }
+
+    [Fact]
+    public async Task StoreTool_InvalidImportance_ThrowsHelpfulValidationError()
+    {
+        var service = new SpyMemoryService();
+        var tool = new StoreTool(service);
+
+        var exception = await Assert.ThrowsAsync<ArgumentException>(() => tool.ExecuteAsync("project-x", "remember this", importance: "urgent", cancellationToken: CancellationToken.None));
+
+        exception.Message.Is("Invalid importance 'urgent'. Allowed values: low, normal, high. (Parameter 'importance')");
     }
 
     [Fact]
@@ -341,6 +365,8 @@ public sealed class MemoryToolTests
 
         public IReadOnlyList<string>? StoredTags { get; private set; }
 
+        public MemoryImportance? StoredImportance { get; private set; }
+
         public string? ReadSection { get; private set; }
 
         public string? SearchQuery { get; private set; }
@@ -355,11 +381,17 @@ public sealed class MemoryToolTests
 
         public Exception? SearchException { get; init; }
 
-        public Task StoreAsync(string section, string text, IReadOnlyList<string>? tags = null, CancellationToken cancellationToken = default)
+        public Task StoreAsync(
+            string section,
+            string text,
+            IReadOnlyList<string>? tags = null,
+            MemoryImportance? importance = null,
+            CancellationToken cancellationToken = default)
         {
             StoredName = section;
             StoredText = text;
             StoredTags = tags;
+            StoredImportance = importance;
             return Task.CompletedTask;
         }
 

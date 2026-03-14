@@ -2,7 +2,12 @@ namespace EngramMcp.Core.Abstractions;
 
 public interface IMemoryService
 {
-    Task StoreAsync(string section, string text, IReadOnlyList<string>? tags = null, CancellationToken cancellationToken = default);
+    Task StoreAsync(
+        string section,
+        string text,
+        IReadOnlyList<string>? tags = null,
+        MemoryImportance? importance = null,
+        CancellationToken cancellationToken = default);
 
     Task<MemoryContainer> ReadAsync(string section, CancellationToken cancellationToken = default);
 

@@ -85,6 +85,17 @@ public sealed class MemoryServiceTests
     }
 
     [Fact]
+    public async Task StoreAsync_PersistsExplicitImportance()
+    {
+        var memoryStore = new InMemoryStore(CreateContainer());
+        var service = new MemoryService(new CodeMemoryCatalog(), memoryStore);
+
+        await service.StoreAsync(ShortTerm, "important", importance: MemoryImportance.High);
+
+        memoryStore.Container.Memories[ShortTerm][0].Importance.Is(MemoryImportance.High);
+    }
+
+    [Fact]
     public async Task StoreAsync_AllowsDuplicates_AndUsesTargetMemoryOnly()
     {
         var memoryStore = new InMemoryStore(CreateContainer(new Dictionary<string, List<MemoryEntry>>(StringComparer.Ordinal)
@@ -151,6 +162,30 @@ public sealed class MemoryServiceTests
         entries.Count.Is(catalog.GetByName("project-x").Capacity);
         entries[0].Text.Is("entry-6");
         entries[^1].Text.Is("entry-25");
+    }
+
+    [Fact]
+    public async Task StoreAsync_EvictsLowerImportanceBeforeOlderHigherImportance()
+    {
+        var memoryStore = new InMemoryStore(CreateContainer(new Dictionary<string, List<MemoryEntry>>(StringComparer.Ordinal)
+        {
+            [ShortTerm] =
+            [
+                new(new DateTime(2026, 3, 11, 8, 0, 0), "low", importance: MemoryImportance.Low),
+                new(new DateTime(2026, 3, 11, 9, 0, 0), "normal-1", importance: MemoryImportance.Normal),
+                new(new DateTime(2026, 3, 11, 10, 0, 0), "normal-2", importance: MemoryImportance.Normal),
+                new(new DateTime(2026, 3, 11, 11, 0, 0), "normal-3", importance: MemoryImportance.Normal),
+                new(new DateTime(2026, 3, 11, 12, 0, 0), "high", importance: MemoryImportance.High)
+            ],
+            [MediumTerm] = [],
+            [LongTerm] = []
+        }));
+        var service = new MemoryService(new CodeMemoryCatalog(), memoryStore);
+
+        await service.StoreAsync(ShortTerm, "new-high", importance: MemoryImportance.High);
+
+        memoryStore.Container.Memories[ShortTerm].Select(entry => entry.Text).ToArray()
+            .SequenceEqual(["normal-1", "normal-2", "normal-3", "high", "new-high"]).IsTrue();
     }
 
     [Fact]
