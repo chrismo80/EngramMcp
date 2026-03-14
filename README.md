@@ -52,14 +52,14 @@ Most agent sessions are stateless by default. EngramMcp solves that by providing
 ## What You Can Use It For
 
 | Tool                  | Description                                                                        |
-| --------------------- | ---------------------------------------------------------------------------------- |
+|-----------------------| ---------------------------------------------------------------------------------- |
 | **Recall**            | Load the built-in memory overview and list available custom sections               |
-| **Read Section**      | Read the contents of one specific memory section                                   |
-| **Search Memories**   | Search individual memory entries across section names, tags, and text              |
 | **Store Long-Term**   | Save durable facts and preferences worth keeping indefinitely                      |
 | **Store Medium-Term** | Save useful context that may change over time                                      |
 | **Store Short-Term**  | Save the recent working state for fast next-session continuation                   |
+| **Read Section**      | Read the contents of one specific memory section                                   |
 | **Store**             | Save memory into any named section, including custom sections created on first use |
+| **Search**            | Search individual memory entries across section names, tags, and text              |
 
 ## Memory Model
 
