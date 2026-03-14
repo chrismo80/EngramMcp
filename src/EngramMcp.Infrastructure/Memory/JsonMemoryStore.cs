@@ -1,5 +1,6 @@
 using EngramMcp.Core;
 using EngramMcp.Core.Abstractions;
+using System.Text.Encodings.Web;
 using System.Text.Json;
 
 namespace EngramMcp.Infrastructure.Memory;
@@ -8,6 +9,7 @@ public sealed class JsonMemoryStore : IMemoryStore
 {
     private static readonly JsonSerializerOptions SerializerOptions = new()
     {
+        Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
         WriteIndented = true
     };
