@@ -71,14 +71,14 @@ In addition, agents can create custom sections through `store(section, text, tag
 
 Built-in sections appear first in `recall`. Custom sections are listed afterward as discoverable section names with entry counts, but their contents are not dumped into the default recall output.
 
-When a section exceeds its capacity, retention is applied globally within that section: lower-importance entries are discarded before higher-importance entries, and ties are broken by oldest timestamp first.
+When a section exceeds its capacity, retention is applied globally within that section using a weighted score: older entries become more likely eviction candidates over time, while higher importance reduces that score and protects entries longer. The current weights are `low = 1`, `normal = 3`, and `high = 8`.
 
 Each stored entry contains:
 
 - `timestamp` - local write timestamp
 - `text` - a required single-line memory text with a maximum length of 500 characters
 - `tags` - optional normalized tags used for later search and filtering
-- `importance` - optional importance level: `low`, `normal`, or `high`
+- `importance` - optional importance level: `low`, `normal`, or `high`; unknown values currently fall back to `normal`
 
 Example file shape:
 
