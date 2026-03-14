@@ -51,12 +51,7 @@ internal sealed class MemoryEntryJsonConverter : JsonConverter<MemoryEntry>
             if (importanceElement.ValueKind != JsonValueKind.String)
                 throw new JsonException("Memory entry property 'importance' must be a string.");
 
-            var importanceValue = importanceElement.GetString();
-
-            if (!MemoryImportanceSerializer.TryParse(importanceValue, out var parsedImportance))
-                throw new JsonException("Memory entry property 'importance' must be one of: low, normal, high.");
-
-            importance = parsedImportance;
+            importance = importanceElement.GetString().Parse();
         }
 
         return new MemoryEntry(timestampElement.GetDateTime(), textElement.GetString()!, tags, importance);

@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using EngramMcp.Core;
 using EngramMcp.Core.Abstractions;
 using ModelContextProtocol.Server;
 
@@ -15,10 +16,10 @@ public sealed class StoreTool(IMemoryService memoryService) : Tool
         string text,
         [Description("Optional normalized tags to store with this memory entry.")]
         IReadOnlyList<string>? tags = null,
-        [Description("Optional importance level for this memory entry. Defaults to normal.")]
+        [Description("Optional importance level: low, normal, high. Defaults to normal.")]
         string? importance = null,
         CancellationToken cancellationToken = default)
     {
-        return memoryService.StoreAsync(section, text, tags, MemoryImportanceToolParser.ParseOrDefault(importance), cancellationToken);
+        return memoryService.StoreAsync(section, text, tags, importance.Parse(), cancellationToken);
     }
 }

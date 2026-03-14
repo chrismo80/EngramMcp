@@ -22,7 +22,6 @@ public sealed class CodeMemoryCatalog : IMemoryCatalog
         _fixedMemories = Memories.ToDictionary(memory => memory.Name, StringComparer.OrdinalIgnoreCase);
     }
 
-
     public MemorySection GetByName(string name)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);

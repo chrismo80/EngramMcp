@@ -20,22 +20,11 @@ public static class MemoryImportanceSerializer
         };
     }
 
-    public static bool TryParse(string? value, out MemoryImportance importance)
+    public static MemoryImportance Parse(this string? value) => value switch
     {
-        switch (value)
-        {
-            case "low":
-                importance = MemoryImportance.Low;
-                return true;
-            case "normal":
-                importance = MemoryImportance.Normal;
-                return true;
-            case "high":
-                importance = MemoryImportance.High;
-                return true;
-            default:
-                importance = default;
-                return false;
-        }
-    }
+        "low" => MemoryImportance.Low,
+        "normal" => MemoryImportance.Normal,
+        "high" => MemoryImportance.High,
+        _ => MemoryImportance.Normal,
+    };
 }

@@ -14,13 +14,13 @@ public sealed class MemorySection(string name, int capacity)
         entries.Add(entry);
 
         while (entries.Count > Capacity)
-            entries.RemoveAt(MemoryRetention.GetNextEntryIndexToEvict(entries));
+            entries.Remove(entries.GetEntryToEvict());
     }
 
     public IReadOnlyList<MemoryEntry> Read(MemoryContainer container)
     {
         ArgumentNullException.ThrowIfNull(container);
-        
+
         return GetEntries(container);
     }
 
@@ -31,7 +31,7 @@ public sealed class MemorySection(string name, int capacity)
 
         entries = [];
         container.Memories[Name] = entries;
-        
+
         return entries;
     }
 }

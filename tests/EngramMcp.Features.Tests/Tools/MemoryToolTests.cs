@@ -61,28 +61,6 @@ public sealed class MemoryToolTests
     }
 
     [Fact]
-    public async Task StoreTool_OmittedImportance_PreservesServiceDefault()
-    {
-        var service = new SpyMemoryService();
-        var tool = new StoreTool(service);
-
-        await tool.ExecuteAsync("project-x", "remember this", cancellationToken: CancellationToken.None);
-
-        service.StoredImportance.IsNull();
-    }
-
-    [Fact]
-    public async Task StoreTool_InvalidImportance_ThrowsHelpfulValidationError()
-    {
-        var service = new SpyMemoryService();
-        var tool = new StoreTool(service);
-
-        var exception = await Assert.ThrowsAsync<ArgumentException>(() => tool.ExecuteAsync("project-x", "remember this", importance: "urgent", cancellationToken: CancellationToken.None));
-
-        exception.Message.Is("Invalid importance 'urgent'. Allowed values: low, normal, high. (Parameter 'importance')");
-    }
-
-    [Fact]
     public async Task StoreTool_AllowsBuiltInSectionNames()
     {
         var service = new SpyMemoryService();
