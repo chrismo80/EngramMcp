@@ -128,9 +128,9 @@ Example file shape:
 
 - `recall` is the curated overview for the built-in sections plus custom-section discovery
 - `read_section(section)` reads one exact section when you already know its name; section lookup is case-insensitive and trims surrounding whitespace
-- `search(query)` searches across section names, tags, and entry text using case-insensitive substring matching
+- `search(query)` splits the query on whitespace and matches each term case-insensitively as a substring against section names, tags, and entry text
 
-`search` returns individual matching entries, sorted by `importance` descending and then `timestamp` descending.
+`search` returns individual matching entries when at least one query term matches. Results are ranked by the number of distinct query terms matched, then sorted by `importance` descending and `timestamp` descending.
 
 All write tools support optional `tags` and `importance`, including `store(section, text, tags?, importance?)` and the built-in section writers.
 
@@ -145,7 +145,7 @@ Prefer using existing memory over asking the user to repeat information.
 Check memory before answering questions about the user, preferences, prior work, or ongoing tasks.
 
 - memory_recall: Call at the start of each session.
-- memory_search: Use for keyword-based memory retrieval.
+- memory_search: Use for loose keyword-based memory retrieval; short focused queries work best.
 - memory_read_section: Use for retrieving the full contents of a section.
 
 ### Storage

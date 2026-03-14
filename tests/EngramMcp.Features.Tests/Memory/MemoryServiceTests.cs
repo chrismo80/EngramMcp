@@ -414,6 +414,31 @@ public sealed class MemoryServiceTests
         results[0].Section.Is(ShortTerm);
     }
 
+    [Fact]
+    public async Task SearchAsync_MatchesAnyQueryTokenAcrossSectionsTextAndTags()
+    {
+        var service = new MemoryService(new CodeMemoryCatalog(), new InMemoryStore(CreateContainer(new Dictionary<string, List<MemoryEntry>>(StringComparer.Ordinal)
+        {
+            [ShortTerm] =
+            [
+                new(new DateTime(2026, 3, 11, 9, 0, 0), "workspace planning")
+            ],
+            [MediumTerm] =
+            [
+                new(new DateTime(2026, 3, 11, 10, 0, 0), "general note", ["docker"])
+            ],
+            [LongTerm] = [],
+            ["project-ops"] =
+            [
+                new(new DateTime(2026, 3, 11, 11, 0, 0), "custom entry")
+            ]
+        })));
+
+        var results = await service.SearchAsync("docker workspace ops");
+
+        results.Select(result => result.Section).ToArray().SequenceEqual(["project-ops", MediumTerm, ShortTerm]).IsTrue();
+    }
+
     [Theory]
     [InlineData("")]
     [InlineData("   ")]
@@ -442,6 +467,77 @@ public sealed class MemoryServiceTests
         })));
 
         var results = await service.SearchAsync("match");
+
+        results.Select(result => result.Entry.Timestamp).ToArray().SequenceEqual(
+            [
+                new DateTime(2026, 3, 11, 10, 0, 0),
+                new DateTime(2026, 3, 11, 8, 0, 0),
+                new DateTime(2026, 3, 11, 12, 0, 0)
+            ]).IsTrue();
+    }
+
+    [Fact]
+    public async Task SearchAsync_RanksByDistinctMatchedTokenCountDescending()
+    {
+        var service = new MemoryService(new CodeMemoryCatalog(), new InMemoryStore(CreateContainer(new Dictionary<string, List<MemoryEntry>>(StringComparer.Ordinal)
+        {
+            [ShortTerm] =
+            [
+                new(new DateTime(2026, 3, 11, 9, 0, 0), "docker workspace note", ["ops"]),
+                new(new DateTime(2026, 3, 11, 10, 0, 0), "docker note"),
+                new(new DateTime(2026, 3, 11, 11, 0, 0), "workspace note")
+            ],
+            [MediumTerm] = [],
+            [LongTerm] = []
+        })));
+
+        var results = await service.SearchAsync("docker workspace ops");
+
+        results.Select(result => result.Entry.Text).ToArray().SequenceEqual([
+            "docker workspace note",
+            "workspace note",
+            "docker note"
+        ]).IsTrue();
+    }
+
+    [Fact]
+    public async Task SearchAsync_DoesNotIncreaseScoreForDuplicateQueryTokens()
+    {
+        var service = new MemoryService(new CodeMemoryCatalog(), new InMemoryStore(CreateContainer(new Dictionary<string, List<MemoryEntry>>(StringComparer.Ordinal)
+        {
+            [ShortTerm] =
+            [
+                new(new DateTime(2026, 3, 11, 9, 0, 0), "docker workspace note"),
+                new(new DateTime(2026, 3, 11, 10, 0, 0), "docker note")
+            ],
+            [MediumTerm] = [],
+            [LongTerm] = []
+        })));
+
+        var results = await service.SearchAsync("docker docker workspace");
+
+        results.Select(result => result.Entry.Text).ToArray().SequenceEqual([
+            "docker workspace note",
+            "docker note"
+        ]).IsTrue();
+    }
+
+    [Fact]
+    public async Task SearchAsync_UsesImportanceAndTimestampTieBreakersWhenTokenCountsMatch()
+    {
+        var service = new MemoryService(new CodeMemoryCatalog(), new InMemoryStore(CreateContainer(new Dictionary<string, List<MemoryEntry>>(StringComparer.Ordinal)
+        {
+            [ShortTerm] =
+            [
+                new(new DateTime(2026, 3, 11, 8, 0, 0), "docker workspace", importance: MemoryImportance.High),
+                new(new DateTime(2026, 3, 11, 10, 0, 0), "docker workspace", importance: MemoryImportance.High),
+                new(new DateTime(2026, 3, 11, 12, 0, 0), "docker workspace", importance: MemoryImportance.Normal)
+            ],
+            [MediumTerm] = [],
+            [LongTerm] = []
+        })));
+
+        var results = await service.SearchAsync("docker workspace");
 
         results.Select(result => result.Entry.Timestamp).ToArray().SequenceEqual(
             [

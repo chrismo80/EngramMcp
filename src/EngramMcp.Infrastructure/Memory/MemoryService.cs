@@ -59,13 +59,17 @@ public sealed class MemoryService(IMemoryCatalog memoryCatalog, IMemoryStore mem
         if (string.IsNullOrWhiteSpace(query))
             throw new ArgumentException("Search query must not be null, empty, or whitespace.", nameof(query));
 
+        var queryTokens = TokenizeQuery(query);
         var container = await memoryStore.LoadAsync(cancellationToken).ConfigureAwait(false);
 
         return container.Memories
             .SelectMany(section => section.Value.Select(entry => new MemorySearchResult(section.Key, entry)))
-            .Where(result => Matches(result, query))
-            .OrderByDescending(result => result.Entry.Importance)
-            .ThenByDescending(result => result.Entry.Timestamp)
+            .Select(result => new { Result = result, MatchedTokenCount = CountMatchedTokens(result, queryTokens) })
+            .Where(result => result.MatchedTokenCount > 0)
+            .OrderByDescending(result => result.MatchedTokenCount)
+            .ThenByDescending(result => result.Result.Entry.Importance)
+            .ThenByDescending(result => result.Result.Entry.Timestamp)
+            .Select(result => result.Result)
             .ToList();
     }
 
@@ -80,11 +84,19 @@ public sealed class MemoryService(IMemoryCatalog memoryCatalog, IMemoryStore mem
         };
     }
 
-    private static bool Matches(MemorySearchResult result, string query)
+    private static HashSet<string> TokenizeQuery(string query)
     {
-        return result.Section.Contains(query, StringComparison.OrdinalIgnoreCase)
-            || result.Entry.Text.Contains(query, StringComparison.OrdinalIgnoreCase)
-            || result.Entry.Tags.Any(tag => tag.Contains(query, StringComparison.OrdinalIgnoreCase));
+        return query
+            .Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+    }
+
+    private static int CountMatchedTokens(MemorySearchResult result, IEnumerable<string> queryTokens)
+    {
+        return queryTokens.Count(token =>
+            result.Section.Contains(token, StringComparison.OrdinalIgnoreCase)
+            || result.Entry.Text.Contains(token, StringComparison.OrdinalIgnoreCase)
+            || result.Entry.Tags.Any(tag => tag.Contains(token, StringComparison.OrdinalIgnoreCase)));
     }
 
     private string GetAvailableSectionNames(MemoryContainer container)
