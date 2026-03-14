@@ -2,6 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 using ModelContextProtocol.Protocol;
 using EngramMcp.Features;
 using EngramMcp.Infrastructure;
+using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.Json.Serialization.Metadata;
@@ -10,6 +11,11 @@ namespace EngramMcp.Host;
 
 public static class HostExtensions
 {
+    internal static string ServerVersion => typeof(HostExtensions).Assembly
+        .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion
+        ?? typeof(HostExtensions).Assembly.GetName().Version?.ToString()
+        ?? "0.0.0";
+
     extension(IServiceCollection services)
     {
         public void Compose(MemoryFileOptions options) => services
@@ -34,7 +40,7 @@ public static class HostExtensions
                 options.ServerInfo = new Implementation
                 {
                     Name = "EngramMcp",
-                    Version = "0.1.0"
+                    Version = ServerVersion
                 };
             });
 
