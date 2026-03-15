@@ -11,7 +11,7 @@ namespace EngramMcp.Host;
 
 public static class HostExtensions
 {
-    internal static string ServerVersion => typeof(HostExtensions).Assembly
+    internal static string ServerVersion => Assembly.GetExecutingAssembly()?
         .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion
         ?? typeof(HostExtensions).Assembly.GetName().Version?.ToString()
         ?? "0.0.0";

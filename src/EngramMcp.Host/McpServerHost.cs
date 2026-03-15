@@ -10,11 +10,6 @@ public static class McpServerHost
         var options = ParseOptions(args, Directory.GetCurrentDirectory());
         var builder = Microsoft.Extensions.Hosting.Host.CreateApplicationBuilder(args);
         builder.Logging.ClearProviders();
-        builder.Logging.AddSimpleConsole(consoleOptions =>
-        {
-            consoleOptions.SingleLine = true;
-            consoleOptions.TimestampFormat = "[yyyy-MM-dd HH:mm:ss] ";
-        });
 
         builder.Services.Compose(options);
 
