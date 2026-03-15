@@ -13,7 +13,7 @@ public sealed class JsonMemoryStoreTests : IDisposable
 
     private static JsonMemoryStore CreateStore(string filePath)
     {
-        return new JsonMemoryStore(filePath, new CodeMemoryCatalog());
+        return new JsonMemoryStore(filePath, new CodeMemoryCatalog(MemorySize.Normal));
     }
 
     [Fact]

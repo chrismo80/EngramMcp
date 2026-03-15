@@ -4,21 +4,30 @@ using static EngramMcp.Core.BuiltInMemorySections;
 
 namespace EngramMcp.Infrastructure.Memory;
 
+public enum MemorySize
+{
+    Small,
+    Normal,
+    Big
+}
+
 public sealed class CodeMemoryCatalog : IMemoryCatalog
 {
-    private const int CustomMemoryCapacity = 20;
+    private readonly int _baseCapacity;
 
     private readonly IReadOnlyDictionary<string, MemorySection> _fixedMemories;
 
-    public IReadOnlyList<MemorySection> Memories { get; } =
-    [
-        new(LongTerm, 20),
-        new(MediumTerm, 10),
-        new(ShortTerm, 5),
-    ];
+    public IReadOnlyList<MemorySection> Memories { get; }
 
-    public CodeMemoryCatalog()
+    public CodeMemoryCatalog(MemorySize size)
     {
+        _baseCapacity = GetBaseCapacity(size);
+        Memories =
+        [
+            new(LongTerm, _baseCapacity * 4),
+            new(MediumTerm, _baseCapacity * 2),
+            new(ShortTerm, _baseCapacity),
+        ];
         _fixedMemories = Memories.ToDictionary(memory => memory.Name, StringComparer.OrdinalIgnoreCase);
     }
 
@@ -26,7 +35,10 @@ public sealed class CodeMemoryCatalog : IMemoryCatalog
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
 
-        return _fixedMemories.TryGetValue(name, out var memory) ? memory : new MemorySection(name, CustomMemoryCapacity);
+        if(_fixedMemories.TryGetValue(name, out var memory))
+            return memory;
+
+        return new MemorySection(name, _baseCapacity * 4);
     }
 
     public IReadOnlyList<MemorySection> GetRecallOrder(MemoryContainer container)
@@ -35,4 +47,12 @@ public sealed class CodeMemoryCatalog : IMemoryCatalog
 
         return Memories;
     }
+
+    private static int GetBaseCapacity(MemorySize size) => size switch
+    {
+        MemorySize.Small => 5,
+        MemorySize.Normal => 10,
+        MemorySize.Big => 20,
+        _ => throw new ArgumentOutOfRangeException(nameof(size), size, "Unsupported memory size.")
+    };
 }

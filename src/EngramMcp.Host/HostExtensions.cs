@@ -20,7 +20,7 @@ public static class HostExtensions
     {
         public void Compose(MemoryFileOptions options) => services
             .AddSingleton(options)
-            .AddInfrastructure(options.FilePath)
+            .AddInfrastructure(options.FilePath, options.Size)
             .AddImplementations<Features.Tool>()
             .AddHostedService<StartupValidationService>()
             .AddMcpRuntime();

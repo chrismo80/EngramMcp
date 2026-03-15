@@ -12,7 +12,7 @@ public sealed class MemoryServiceTests
     [Fact]
     public async Task StoreAsync_RejectsWhitespaceOnlyText()
     {
-        var service = new MemoryService(new CodeMemoryCatalog(), new InMemoryStore(new MemoryContainer
+        var service = new MemoryService(new CodeMemoryCatalog(MemorySize.Normal), new InMemoryStore(new MemoryContainer
         {
             Memories = new Dictionary<string, List<MemoryEntry>>(StringComparer.Ordinal)
             {
@@ -28,7 +28,7 @@ public sealed class MemoryServiceTests
     [Fact]
     public async Task StoreAsync_RejectsMultilineText()
     {
-        var service = new MemoryService(new CodeMemoryCatalog(), new InMemoryStore(new MemoryContainer
+        var service = new MemoryService(new CodeMemoryCatalog(MemorySize.Normal), new InMemoryStore(new MemoryContainer
         {
             Memories = new Dictionary<string, List<MemoryEntry>>(StringComparer.Ordinal)
             {
@@ -46,7 +46,7 @@ public sealed class MemoryServiceTests
     [Fact]
     public async Task StoreAsync_RejectsOverlyLongText()
     {
-        var service = new MemoryService(new CodeMemoryCatalog(), new InMemoryStore(new MemoryContainer
+        var service = new MemoryService(new CodeMemoryCatalog(MemorySize.Normal), new InMemoryStore(new MemoryContainer
         {
             Memories = new Dictionary<string, List<MemoryEntry>>(StringComparer.Ordinal)
             {
@@ -65,7 +65,7 @@ public sealed class MemoryServiceTests
     public async Task StoreAsync_PersistsValidSingleLineText()
     {
         var memoryStore = new InMemoryStore(CreateContainer());
-        var service = new MemoryService(new CodeMemoryCatalog(), memoryStore);
+        var service = new MemoryService(new CodeMemoryCatalog(MemorySize.Normal), memoryStore);
 
         await service.StoreAsync(ShortTerm, "valid single line");
 
@@ -77,7 +77,7 @@ public sealed class MemoryServiceTests
     public async Task StoreAsync_PersistsNormalizedTags()
     {
         var memoryStore = new InMemoryStore(CreateContainer());
-        var service = new MemoryService(new CodeMemoryCatalog(), memoryStore);
+        var service = new MemoryService(new CodeMemoryCatalog(MemorySize.Normal), memoryStore);
 
         await service.StoreAsync(ShortTerm, "tagged", ["Docker", "ops", "docker", "   "]);
 
@@ -88,7 +88,7 @@ public sealed class MemoryServiceTests
     public async Task StoreAsync_PersistsExplicitImportance()
     {
         var memoryStore = new InMemoryStore(CreateContainer());
-        var service = new MemoryService(new CodeMemoryCatalog(), memoryStore);
+        var service = new MemoryService(new CodeMemoryCatalog(MemorySize.Normal), memoryStore);
 
         await service.StoreAsync(ShortTerm, "important", importance: MemoryImportance.High);
 
@@ -105,7 +105,7 @@ public sealed class MemoryServiceTests
             [LongTerm] = []
         }));
 
-        var service = new MemoryService(new CodeMemoryCatalog(), memoryStore);
+        var service = new MemoryService(new CodeMemoryCatalog(MemorySize.Normal), memoryStore);
 
         await service.StoreAsync(ShortTerm, "duplicate");
         await service.StoreAsync(ShortTerm, "duplicate");
@@ -122,7 +122,7 @@ public sealed class MemoryServiceTests
     public async Task StoreAsync_CreatesCustomBucketOnFirstWrite()
     {
         var memoryStore = new InMemoryStore(CreateContainer());
-        var service = new MemoryService(new CodeMemoryCatalog(), memoryStore);
+        var service = new MemoryService(new CodeMemoryCatalog(MemorySize.Normal), memoryStore);
 
         await service.StoreAsync("project-x", "custom");
 
@@ -140,7 +140,7 @@ public sealed class MemoryServiceTests
             [LongTerm] = [],
             ["project-x"] = [new(new DateTime(2026, 3, 11, 10, 0, 0), "existing")]
         }));
-        var service = new MemoryService(new CodeMemoryCatalog(), memoryStore);
+        var service = new MemoryService(new CodeMemoryCatalog(MemorySize.Normal), memoryStore);
 
         await service.StoreAsync("PROJECT-X", "custom");
 
@@ -151,17 +151,17 @@ public sealed class MemoryServiceTests
     [Fact]
     public async Task StoreAsync_UsesSharedCustomBucketCapacity()
     {
-        var catalog = new CodeMemoryCatalog();
+        var catalog = new CodeMemoryCatalog(MemorySize.Normal);
         var memoryStore = new InMemoryStore(CreateContainer());
         var service = new MemoryService(catalog, memoryStore);
 
-        foreach (var index in Enumerable.Range(1, 25))
+        foreach (var index in Enumerable.Range(1, 50))
             await service.StoreAsync("project-x", $"entry-{index}");
 
         var entries = memoryStore.Container.Memories["project-x"];
         entries.Count.Is(catalog.GetByName("project-x").Capacity);
-        entries[0].Text.Is("entry-6");
-        entries[^1].Text.Is("entry-25");
+        entries[0].Text.Is("entry-11");
+        entries[^1].Text.Is("entry-50");
     }
 
     [Fact]
@@ -180,7 +180,7 @@ public sealed class MemoryServiceTests
             [MediumTerm] = [],
             [LongTerm] = []
         }));
-        var service = new MemoryService(new CodeMemoryCatalog(), memoryStore);
+        var service = new MemoryService(new CodeMemoryCatalog(MemorySize.Small), memoryStore);
 
         await service.StoreAsync(ShortTerm, "new-high", importance: MemoryImportance.High);
 
@@ -196,7 +196,7 @@ public sealed class MemoryServiceTests
         try
         {
             var filePath = Path.Combine(rootPath, "memory.json");
-            var catalog = new CodeMemoryCatalog();
+            var catalog = new CodeMemoryCatalog(MemorySize.Normal);
             var memoryStore = new JsonMemoryStore(filePath, catalog);
             var service = new MemoryService(catalog, memoryStore);
             const int operationCount = 10;
@@ -238,7 +238,7 @@ public sealed class MemoryServiceTests
     [Fact]
     public async Task ReadAsync_ReturnsBuiltInSectionOnly()
     {
-        var service = new MemoryService(new CodeMemoryCatalog(), new InMemoryStore(CreateContainer(new Dictionary<string, List<MemoryEntry>>(StringComparer.Ordinal)
+        var service = new MemoryService(new CodeMemoryCatalog(MemorySize.Normal), new InMemoryStore(CreateContainer(new Dictionary<string, List<MemoryEntry>>(StringComparer.Ordinal)
         {
             [ShortTerm] = [new(new DateTime(2026, 3, 11, 10, 0, 0), "short")],
             [MediumTerm] = [new(new DateTime(2026, 3, 11, 11, 0, 0), "medium")],
@@ -254,7 +254,7 @@ public sealed class MemoryServiceTests
     [Fact]
     public async Task ReadAsync_ReturnsCustomSectionOnly()
     {
-        var service = new MemoryService(new CodeMemoryCatalog(), new InMemoryStore(CreateContainer(new Dictionary<string, List<MemoryEntry>>(StringComparer.Ordinal)
+        var service = new MemoryService(new CodeMemoryCatalog(MemorySize.Normal), new InMemoryStore(CreateContainer(new Dictionary<string, List<MemoryEntry>>(StringComparer.Ordinal)
         {
             [ShortTerm] = [],
             [MediumTerm] = [],
@@ -271,7 +271,7 @@ public sealed class MemoryServiceTests
     [Fact]
     public async Task ReadAsync_NormalizesBuiltInSectionLookupCaseInsensitively()
     {
-        var service = new MemoryService(new CodeMemoryCatalog(), new InMemoryStore(CreateContainer(new Dictionary<string, List<MemoryEntry>>(StringComparer.Ordinal)
+        var service = new MemoryService(new CodeMemoryCatalog(MemorySize.Normal), new InMemoryStore(CreateContainer(new Dictionary<string, List<MemoryEntry>>(StringComparer.Ordinal)
         {
             [ShortTerm] = [new(new DateTime(2026, 3, 11, 10, 0, 0), "short")],
             [MediumTerm] = [],
@@ -287,7 +287,7 @@ public sealed class MemoryServiceTests
     [Fact]
     public async Task ReadAsync_NormalizesCustomSectionLookupCaseInsensitively()
     {
-        var service = new MemoryService(new CodeMemoryCatalog(), new InMemoryStore(CreateContainer(new Dictionary<string, List<MemoryEntry>>(StringComparer.Ordinal)
+        var service = new MemoryService(new CodeMemoryCatalog(MemorySize.Normal), new InMemoryStore(CreateContainer(new Dictionary<string, List<MemoryEntry>>(StringComparer.Ordinal)
         {
             [ShortTerm] = [],
             [MediumTerm] = [],
@@ -304,7 +304,7 @@ public sealed class MemoryServiceTests
     [Fact]
     public async Task ReadAsync_ThrowsWhenSectionDoesNotExist()
     {
-        var service = new MemoryService(new CodeMemoryCatalog(), new InMemoryStore(CreateContainer(new Dictionary<string, List<MemoryEntry>>(StringComparer.Ordinal)
+        var service = new MemoryService(new CodeMemoryCatalog(MemorySize.Normal), new InMemoryStore(CreateContainer(new Dictionary<string, List<MemoryEntry>>(StringComparer.Ordinal)
         {
             [ShortTerm] = [],
             [MediumTerm] = [],
@@ -321,7 +321,7 @@ public sealed class MemoryServiceTests
     [Fact]
     public async Task RecallAsync_ReturnsConfiguredSectionsSeparatedByName()
     {
-        var service = new MemoryService(new CodeMemoryCatalog(), new InMemoryStore(CreateContainer(new Dictionary<string, List<MemoryEntry>>(StringComparer.Ordinal)
+        var service = new MemoryService(new CodeMemoryCatalog(MemorySize.Normal), new InMemoryStore(CreateContainer(new Dictionary<string, List<MemoryEntry>>(StringComparer.Ordinal)
         {
             [ShortTerm] = [new(new DateTime(2026, 3, 11, 10, 0, 0), "short")],
             [MediumTerm] = [],
@@ -338,7 +338,7 @@ public sealed class MemoryServiceTests
     [Fact]
     public async Task RecallAsync_ReturnsOnlyFixedBucketsInStableOrder()
     {
-        var service = new MemoryService(new CodeMemoryCatalog(), new InMemoryStore(CreateContainer(new Dictionary<string, List<MemoryEntry>>(StringComparer.Ordinal)
+        var service = new MemoryService(new CodeMemoryCatalog(MemorySize.Normal), new InMemoryStore(CreateContainer(new Dictionary<string, List<MemoryEntry>>(StringComparer.Ordinal)
         {
             ["z-last"] = [new(new DateTime(2026, 3, 11, 12, 0, 0), "z")],
             [ShortTerm] = [],
@@ -357,7 +357,7 @@ public sealed class MemoryServiceTests
     [Fact]
     public async Task SearchAsync_MatchesSectionNameAcrossBuiltInAndCustomSections()
     {
-        var service = new MemoryService(new CodeMemoryCatalog(), new InMemoryStore(CreateContainer(new Dictionary<string, List<MemoryEntry>>(StringComparer.Ordinal)
+        var service = new MemoryService(new CodeMemoryCatalog(MemorySize.Normal), new InMemoryStore(CreateContainer(new Dictionary<string, List<MemoryEntry>>(StringComparer.Ordinal)
         {
             [ShortTerm] =
             [
@@ -379,7 +379,7 @@ public sealed class MemoryServiceTests
     [Fact]
     public async Task SearchAsync_MatchesTagsCaseInsensitively()
     {
-        var service = new MemoryService(new CodeMemoryCatalog(), new InMemoryStore(CreateContainer(new Dictionary<string, List<MemoryEntry>>(StringComparer.Ordinal)
+        var service = new MemoryService(new CodeMemoryCatalog(MemorySize.Normal), new InMemoryStore(CreateContainer(new Dictionary<string, List<MemoryEntry>>(StringComparer.Ordinal)
         {
             [ShortTerm] =
             [
@@ -398,7 +398,7 @@ public sealed class MemoryServiceTests
     [Fact]
     public async Task SearchAsync_MatchesEntryTextCaseInsensitively()
     {
-        var service = new MemoryService(new CodeMemoryCatalog(), new InMemoryStore(CreateContainer(new Dictionary<string, List<MemoryEntry>>(StringComparer.Ordinal)
+        var service = new MemoryService(new CodeMemoryCatalog(MemorySize.Normal), new InMemoryStore(CreateContainer(new Dictionary<string, List<MemoryEntry>>(StringComparer.Ordinal)
         {
             [ShortTerm] =
             [
@@ -417,7 +417,7 @@ public sealed class MemoryServiceTests
     [Fact]
     public async Task SearchAsync_MatchesAnyQueryTokenAcrossSectionsTextAndTags()
     {
-        var service = new MemoryService(new CodeMemoryCatalog(), new InMemoryStore(CreateContainer(new Dictionary<string, List<MemoryEntry>>(StringComparer.Ordinal)
+        var service = new MemoryService(new CodeMemoryCatalog(MemorySize.Normal), new InMemoryStore(CreateContainer(new Dictionary<string, List<MemoryEntry>>(StringComparer.Ordinal)
         {
             [ShortTerm] =
             [
@@ -444,7 +444,7 @@ public sealed class MemoryServiceTests
     [InlineData("   ")]
     public async Task SearchAsync_RejectsEmptyOrWhitespaceQuery(string query)
     {
-        var service = new MemoryService(new CodeMemoryCatalog(), new InMemoryStore(CreateContainer()));
+        var service = new MemoryService(new CodeMemoryCatalog(MemorySize.Normal), new InMemoryStore(CreateContainer()));
 
         var exception = await Assert.ThrowsAsync<ArgumentException>(() => service.SearchAsync(query));
 
@@ -454,7 +454,7 @@ public sealed class MemoryServiceTests
     [Fact]
     public async Task SearchAsync_SortsByImportanceDescendingThenTimestampDescending()
     {
-        var service = new MemoryService(new CodeMemoryCatalog(), new InMemoryStore(CreateContainer(new Dictionary<string, List<MemoryEntry>>(StringComparer.Ordinal)
+        var service = new MemoryService(new CodeMemoryCatalog(MemorySize.Normal), new InMemoryStore(CreateContainer(new Dictionary<string, List<MemoryEntry>>(StringComparer.Ordinal)
         {
             [ShortTerm] =
             [
@@ -479,7 +479,7 @@ public sealed class MemoryServiceTests
     [Fact]
     public async Task SearchAsync_RanksByDistinctMatchedTokenCountDescending()
     {
-        var service = new MemoryService(new CodeMemoryCatalog(), new InMemoryStore(CreateContainer(new Dictionary<string, List<MemoryEntry>>(StringComparer.Ordinal)
+        var service = new MemoryService(new CodeMemoryCatalog(MemorySize.Normal), new InMemoryStore(CreateContainer(new Dictionary<string, List<MemoryEntry>>(StringComparer.Ordinal)
         {
             [ShortTerm] =
             [
@@ -503,7 +503,7 @@ public sealed class MemoryServiceTests
     [Fact]
     public async Task SearchAsync_DoesNotIncreaseScoreForDuplicateQueryTokens()
     {
-        var service = new MemoryService(new CodeMemoryCatalog(), new InMemoryStore(CreateContainer(new Dictionary<string, List<MemoryEntry>>(StringComparer.Ordinal)
+        var service = new MemoryService(new CodeMemoryCatalog(MemorySize.Normal), new InMemoryStore(CreateContainer(new Dictionary<string, List<MemoryEntry>>(StringComparer.Ordinal)
         {
             [ShortTerm] =
             [
@@ -525,7 +525,7 @@ public sealed class MemoryServiceTests
     [Fact]
     public async Task SearchAsync_UsesImportanceAndTimestampTieBreakersWhenTokenCountsMatch()
     {
-        var service = new MemoryService(new CodeMemoryCatalog(), new InMemoryStore(CreateContainer(new Dictionary<string, List<MemoryEntry>>(StringComparer.Ordinal)
+        var service = new MemoryService(new CodeMemoryCatalog(MemorySize.Normal), new InMemoryStore(CreateContainer(new Dictionary<string, List<MemoryEntry>>(StringComparer.Ordinal)
         {
             [ShortTerm] =
             [

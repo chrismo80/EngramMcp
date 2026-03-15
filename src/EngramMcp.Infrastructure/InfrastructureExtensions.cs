@@ -8,8 +8,8 @@ public static class InfrastructureExtensions
 {
     extension(IServiceCollection services)
     {
-	    public IServiceCollection AddInfrastructure(string memoryFilePath) => services
-	        .AddSingleton<IMemoryCatalog, CodeMemoryCatalog>()
+	    public IServiceCollection AddInfrastructure(string memoryFilePath, MemorySize memorySize) => services
+	        .AddSingleton<IMemoryCatalog>(_ => new CodeMemoryCatalog(memorySize))
 	        .AddSingleton<IMemoryStore>(provider => new JsonMemoryStore(memoryFilePath, provider.GetRequiredService<IMemoryCatalog>()))
 	        .AddSingleton<IMemoryService, MemoryService>();
 
