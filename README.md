@@ -29,9 +29,9 @@ dotnet tool install -g EngramMcp
 }
 ```
 
-By default, EngramMcp stores memory in `.engram/memory.json` under the current workspace directory.
+EngramMcp stores memory by default in `.engram/memory.json` under the current workspace directory.
 
-You can also pass startup options:
+Startup options:
 
 - `--file <path>` keeps the memory file at a fixed location
 - `--size <small|normal|big>` selects the memory capacity profile; default is `small`
@@ -93,9 +93,9 @@ EngramMcp uses three built-in memory sections with capacities derived from the s
 | `normal` | 40 | 20 | 10 | 40 |
 | `big` | 80 | 40 | 20 | 80 |
 
-Agents can create custom sections through `store(section, text, tags?, importance?)`. Custom sections are created lazily on first write and use the same capacity as `long-term` for the active size profile.
+Agents can create custom sections through `store(section, text, tags?, importance?)`. Custom sections are created on first write and use the same capacity as `long-term` for the active size profile.
 
-Built-in sections appear first in `recall`. Custom sections are listed afterward as discoverable section names with entry counts, but their contents are not dumped into the default recall output.
+Built-in sections appear first in `recall`. Custom sections are listed afterward with their names and memory counts, but their contents are not included in the default recall output.
 
 When a section exceeds its capacity, retention is applied globally within that section using a weighted score: older entries become more likely eviction candidates over time, while higher importance reduces that score and protects entries longer. The current weights are `low = 1`, `normal = 3`, and `high = 8`.
 
@@ -158,7 +158,7 @@ Example file shape:
 
 `search` returns individual matching entries when at least one query term matches. Results are ranked by the number of distinct query terms matched, then sorted by `importance` descending and `timestamp` descending.
 
-Retrieval tools now return structured JSON objects instead of markdown strings. Visible semantics stay the same:
+Retrieval tools return structured JSON responses. These responses expose only the fields that belong to the retrieval contract:
 
 - timestamps are never included in `recall`, `read_section`, or `search`
 - `tags` are included only when present
@@ -173,7 +173,7 @@ Example `recall` response shape:
   "memories": {
     "long-term": [
       {
-        "text": "Agent K is my self-identity: not a chatbot, but a gentle coding-buddy",
+        "memory": "Agent K is my self-identity: not a chatbot, but a gentle coding-buddy",
         "tags": ["identity", "preference"],
         "importance": "high"
       }
@@ -184,7 +184,7 @@ Example `recall` response shape:
   "customSections": [
     {
       "name": "project-x",
-      "entryCount": 1
+      "memories": 1
     }
   ]
 }
@@ -197,7 +197,7 @@ Example `read_section(section)` success response shape:
   "memories": {
     "project-x": [
       {
-        "text": "The MCP workspace drift fix was implemented.",
+        "memory": "The MCP workspace drift fix was implemented.",
         "tags": ["roslyn", "workspace"],
         "importance": "high"
       }
@@ -224,7 +224,7 @@ Example `search(query)` response shape:
 {
   "results": [
     {
-      "text": "The MCP workspace drift fix was implemented.",
+      "memory": "The MCP workspace drift fix was implemented.",
       "section": "project-x",
       "tags": ["roslyn", "workspace"],
       "importance": "high"
@@ -236,7 +236,7 @@ Example `search(query)` response shape:
 All write tools support optional `tags` and `importance`, including `store(section, text, tags?, importance?)` and the built-in section writers.
 
 
-# System Prompt
+## System Prompt
 
 ## Memory
 

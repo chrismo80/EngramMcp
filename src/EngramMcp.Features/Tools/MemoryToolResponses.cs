@@ -4,7 +4,7 @@ namespace EngramMcp.Features.Tools;
 
 public sealed record MemoryVisibleItemResponse
 {
-    [JsonPropertyName("text")]
+    [JsonPropertyName("memory")]
     public required string Text { get; init; }
 
     [JsonPropertyName("tags")]
@@ -21,7 +21,7 @@ public sealed record MemorySectionSummaryResponse
     [JsonPropertyName("name")]
     public required string Name { get; init; }
 
-    [JsonPropertyName("entryCount")]
+    [JsonPropertyName("memories")]
     public required int EntryCount { get; init; }
 }
 
@@ -43,7 +43,7 @@ public sealed record ReadSectionResponse
 
 public sealed record SearchItemResponse
 {
-    [JsonPropertyName("text")]
+    [JsonPropertyName("memory")]
     public required string Text { get; init; }
 
     [JsonPropertyName("section")]
