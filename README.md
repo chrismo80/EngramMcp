@@ -158,7 +158,80 @@ Example file shape:
 
 `search` returns individual matching entries when at least one query term matches. Results are ranked by the number of distinct query terms matched, then sorted by `importance` descending and `timestamp` descending.
 
-Entries with `high` importance are highlighted in retrieval output with `- IMPORTANT!`.
+Retrieval tools now return structured JSON objects instead of markdown strings. Visible semantics stay the same:
+
+- timestamps are never included in `recall`, `read_section`, or `search`
+- `tags` are included only when present
+- `importance` is included only for `high`, serialized as `"high"`
+- `recall` always includes the built-in sections in the same order, even when empty
+- `recall.customSections` appears only when there are custom sections to list
+
+Example `recall` response shape:
+
+```json
+{
+  "memories": {
+    "long-term": [
+      {
+        "text": "Agent K is my self-identity: not a chatbot, but a gentle coding-buddy",
+        "tags": ["identity", "preference"],
+        "importance": "high"
+      }
+    ],
+    "medium-term": [],
+    "short-term": []
+  },
+  "customSections": [
+    {
+      "name": "project-x",
+      "entryCount": 1
+    }
+  ]
+}
+```
+
+Example `read_section(section)` success response shape:
+
+```json
+{
+  "memories": {
+    "project-x": [
+      {
+        "text": "The MCP workspace drift fix was implemented.",
+        "tags": ["roslyn", "workspace"],
+        "importance": "high"
+      }
+    ]
+  }
+}
+```
+
+If `read_section(section)` receives a valid but unknown section name, it returns a normal success response with that exact requested section name mapped to an empty list. Invalid section identifiers still fail validation.
+
+Example `read_section(section)` empty response shape:
+
+```json
+{
+  "memories": {
+    "project-x": []
+  }
+}
+```
+
+Example `search(query)` response shape:
+
+```json
+{
+  "results": [
+    {
+      "text": "The MCP workspace drift fix was implemented.",
+      "section": "project-x",
+      "tags": ["roslyn", "workspace"],
+      "importance": "high"
+    }
+  ]
+}
+```
 
 All write tools support optional `tags` and `importance`, including `store(section, text, tags?, importance?)` and the built-in section writers.
 

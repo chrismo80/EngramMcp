@@ -1,6 +1,6 @@
 using EngramMcp.Core;
+using EngramMcp.Features.Tools;
 using System.Reflection;
-using System.Text;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace EngramMcp.Features;
@@ -9,83 +9,79 @@ public static class FeatureExtensions
 {
     extension(MemoryContainer container)
     {
-        internal string ToRecallMarkdown()
+        internal RecallResponse ToRecallResponse()
         {
-            var sb = new StringBuilder("# Memory");
-
-            foreach (var block in container.Memories)
+            return new RecallResponse
             {
-                sb.AppendLine().AppendLine($"## {block.Key}");
-
-                foreach (var memory in block.Value)
-                    sb.AppendLine(FormatMemoryLine(memory));
-            }
-
-            if (container.CustomSections.Count > 0)
-            {
-                sb.AppendLine().AppendLine("## Custom Sections");
-
-                foreach (var section in container.CustomSections
-                    .OrderByDescending(summary => summary.EntryCount)
-                    .ThenBy(summary => summary.Name, StringComparer.Ordinal))
-                    sb.AppendLine($"- {section.Name} ({section.EntryCount})");
-            }
-
-            return sb.ToString();
+                Memories = container.Memories.ToVisibleMemories(),
+                CustomSections = container.CustomSections.Count == 0
+                    ? null
+                    : [.. container.CustomSections
+                        .OrderByDescending(summary => summary.EntryCount)
+                        .ThenBy(summary => summary.Name, StringComparer.Ordinal)
+                        .Select(summary => new MemorySectionSummaryResponse
+                        {
+                            Name = summary.Name,
+                            EntryCount = summary.EntryCount
+                        })]
+            };
         }
 
-        internal string ToSectionMarkdown()
+        internal ReadSectionResponse ToReadSectionResponse()
         {
-            var sb = new StringBuilder("# Memory");
-
-            foreach (var block in container.Memories)
+            return new ReadSectionResponse
             {
-                sb.AppendLine().AppendLine($"## {block.Key}");
-
-                foreach (var memory in block.Value)
-                    sb.AppendLine(FormatMemoryLine(memory));
-            }
-
-            return sb.ToString();
+                Memories = container.Memories.ToVisibleMemories()
+            };
         }
     }
 
     extension(IReadOnlyList<MemorySearchResult> results)
     {
-        internal string ToMarkdown()
+        internal SearchResponse ToSearchResponse()
         {
-            var sb = new StringBuilder("# Memory Search Results");
-
-            if (results.Count == 0)
-                return sb.AppendLine().AppendLine("No matches found.").ToString();
-
-            sb.AppendLine();
-
-            foreach (var result in results)
-                sb.AppendLine(FormatSearchLine(result));
-
-            return sb.ToString();
+            return new SearchResponse
+            {
+                Results = [.. results.Select(result => result.ToSearchItemResponse())]
+            };
         }
     }
 
-    private static string FormatMemoryLine(MemoryEntry memory)
+    private static IReadOnlyDictionary<string, IReadOnlyList<MemoryVisibleItemResponse>> ToVisibleMemories(
+        this IReadOnlyDictionary<string, List<MemoryEntry>> memories)
     {
-        return $"- {memory.Text}{FormatImportanceSuffix(memory.Importance)}{FormatTagsSuffix(memory.Tags)}";
+        var visibleMemories = new Dictionary<string, IReadOnlyList<MemoryVisibleItemResponse>>(StringComparer.Ordinal);
+
+        foreach (var memoryBlock in memories)
+            visibleMemories[memoryBlock.Key] = [.. memoryBlock.Value.Select(entry => entry.ToVisibleItemResponse())];
+
+        return visibleMemories;
     }
 
-    private static string FormatSearchLine(MemorySearchResult result)
+    private static MemoryVisibleItemResponse ToVisibleItemResponse(this MemoryEntry memory)
     {
-        return $"- {result.Entry.Text}{FormatImportanceSuffix(result.Entry.Importance)} (`{result.Section}`){FormatTagsSuffix(result.Entry.Tags)}";
+        return new MemoryVisibleItemResponse
+        {
+            Text = memory.Text,
+            Tags = memory.Tags.Count == 0 ? null : memory.Tags,
+            Importance = memory.Importance.ToVisibleImportance()
+        };
     }
 
-    private static string FormatImportanceSuffix(MemoryImportance importance)
+    private static SearchItemResponse ToSearchItemResponse(this MemorySearchResult result)
     {
-        return importance == MemoryImportance.High ? " - IMPORTANT!" : string.Empty;
+        return new SearchItemResponse
+        {
+            Text = result.Entry.Text,
+            Section = result.Section,
+            Tags = result.Entry.Tags.Count == 0 ? null : result.Entry.Tags,
+            Importance = result.Entry.Importance.ToVisibleImportance()
+        };
     }
 
-    private static string FormatTagsSuffix(IReadOnlyList<string> tags)
+    private static string? ToVisibleImportance(this MemoryImportance importance)
     {
-        return tags.Count == 0 ? string.Empty : $" [tags: {string.Join(", ", tags)}]";
+        return importance == MemoryImportance.High ? importance.ToSerializedValue() : null;
     }
 
     public static IEnumerable<Type> GetImplementations<T>() => Assembly.GetExecutingAssembly()

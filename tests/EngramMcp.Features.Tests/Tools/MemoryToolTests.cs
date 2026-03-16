@@ -9,8 +9,6 @@ namespace EngramMcp.Features.Tests.Tools;
 
 public sealed class MemoryToolTests
 {
-    private static readonly string NewLine = Environment.NewLine;
-
     [Fact]
     public async Task StoreShortTermTool_DelegatesToSharedServiceWithShortTermName()
     {
@@ -72,7 +70,7 @@ public sealed class MemoryToolTests
     }
 
     [Fact]
-    public async Task RecallTool_ReturnsMarkdownWithOrderedSectionsAndNoTimestamps()
+    public async Task RecallTool_ReturnsStructuredMemoriesWithOrderedSectionsAndNoTimestamps()
     {
         var expected = new MemoryContainer
         {
@@ -89,11 +87,18 @@ public sealed class MemoryToolTests
 
         var result = await tool.ExecuteAsync(CancellationToken.None);
 
-        result.IsNotEmpty();
+        result.Memories.Keys.ToArray().SequenceEqual([LongTerm, MediumTerm, ShortTerm]).IsTrue();
+        result.Memories[LongTerm].Count.Is(1);
+        result.Memories[LongTerm][0].Text.Is("long");
+        result.Memories[LongTerm][0].Tags.Is(null);
+        result.Memories[LongTerm][0].Importance.Is(null);
+        result.Memories[MediumTerm].Count.Is(0);
+        result.Memories[ShortTerm].Count.Is(1);
+        result.Memories[ShortTerm][0].Text.Is("short");
 
-        Assert.True(
-            result.IndexOf($"## {LongTerm}", StringComparison.Ordinal) < result.IndexOf($"## {ShortTerm}", StringComparison.Ordinal),
-            $"Expected {LongTerm} section to appear before {ShortTerm} section.");
+        Assert.DoesNotContain(
+            typeof(MemoryVisibleItemResponse).GetProperties(),
+            property => string.Equals(property.Name, nameof(MemoryEntry.Timestamp), StringComparison.Ordinal));
     }
 
     [Fact]
@@ -115,11 +120,11 @@ public sealed class MemoryToolTests
 
         var result = await tool.ExecuteAsync(CancellationToken.None);
 
-        result.Contains("## Custom Sections", StringComparison.Ordinal).IsFalse();
+        result.CustomSections.Is(null);
     }
 
     [Fact]
-    public async Task RecallTool_AppendsCustomSectionListingSortedByDescendingEntryCount()
+    public async Task RecallTool_ReturnsCustomSectionListingSortedByDescendingEntryCount()
     {
         var service = new SpyMemoryService
         {
@@ -143,22 +148,12 @@ public sealed class MemoryToolTests
 
         var result = await tool.ExecuteAsync(CancellationToken.None);
 
-        result.Is(
-            $"# Memory{NewLine}" +
-            $"## {LongTerm}{NewLine}" +
-            NewLine +
-            $"## {MediumTerm}{NewLine}" +
-            NewLine +
-            $"## {ShortTerm}{NewLine}" +
-            NewLine +
-            $"## Custom Sections{NewLine}" +
-            $"- project-large (4){NewLine}" +
-            $"- project-medium (2){NewLine}" +
-            $"- project-small (1){NewLine}");
+        result.CustomSections!.Select(section => (section.Name, section.EntryCount)).ToArray().SequenceEqual(
+            [("project-large", 4), ("project-medium", 2), ("project-small", 1)]).IsTrue();
     }
 
     [Fact]
-    public async Task ReadSectionTool_ReturnsMarkdownForBuiltInSectionOnly()
+    public async Task ReadSectionTool_ReturnsStructuredResponseForBuiltInSectionOnly()
     {
         var service = new SpyMemoryService
         {
@@ -173,13 +168,18 @@ public sealed class MemoryToolTests
         var tool = new ReadSectionTool(service);
 
         var result = await tool.ExecuteAsync(ShortTerm, CancellationToken.None);
+        var response = Assert.IsType<ReadSectionResponse>(result);
 
         service.ReadSection.Is(ShortTerm);
-        result.Is($"# Memory{NewLine}## {ShortTerm}{NewLine}- short [tags: ops, todo]{NewLine}");
+        response.Memories.Keys.ToArray().SequenceEqual([ShortTerm]).IsTrue();
+        response.Memories[ShortTerm].Count.Is(1);
+        response.Memories[ShortTerm][0].Text.Is("short");
+        response.Memories[ShortTerm][0].Tags!.SequenceEqual(["ops", "todo"]).IsTrue();
+        response.Memories[ShortTerm][0].Importance.Is(null);
     }
 
     [Fact]
-    public async Task ReadSectionTool_ReturnsMarkdownForCustomSectionOnly()
+    public async Task ReadSectionTool_ReturnsStructuredResponseForCustomSectionOnly()
     {
         var service = new SpyMemoryService
         {
@@ -194,13 +194,17 @@ public sealed class MemoryToolTests
         var tool = new ReadSectionTool(service);
 
         var result = await tool.ExecuteAsync("project-x", CancellationToken.None);
+        var response = Assert.IsType<ReadSectionResponse>(result);
 
         service.ReadSection.Is("project-x");
-        result.Is($"# Memory{NewLine}## project-x{NewLine}- custom{NewLine}");
+        response.Memories.Keys.ToArray().SequenceEqual(["project-x"]).IsTrue();
+        response.Memories["project-x"][0].Text.Is("custom");
+        response.Memories["project-x"][0].Tags.Is(null);
+        response.Memories["project-x"][0].Importance.Is(null);
     }
 
     [Fact]
-    public async Task ReadSectionTool_ReturnsHumanReadableMissingSectionFailure()
+    public async Task ReadSectionTool_ReturnsStructuredEmptyResponseForMissingSection()
     {
         var service = new SpyMemoryService
         {
@@ -210,11 +214,12 @@ public sealed class MemoryToolTests
 
         var result = await tool.ExecuteAsync("project-x", CancellationToken.None);
 
-        result.Is($"# Memory Section Error\r\nSection not found. Memory section 'project-x' was not found. Available sections: {LongTerm}, {MediumTerm}, {ShortTerm}, project-a.\r\n");
+        result.Memories.Keys.ToArray().SequenceEqual(["project-x"]).IsTrue();
+        result.Memories["project-x"].Count.Is(0);
     }
 
     [Fact]
-    public async Task ReadSectionTool_ReturnsHumanReadableInvalidSectionFailure()
+    public async Task ReadSectionTool_PropagatesInvalidSectionFailure()
     {
         var service = new SpyMemoryService
         {
@@ -222,13 +227,13 @@ public sealed class MemoryToolTests
         };
         var tool = new ReadSectionTool(service);
 
-        var result = await tool.ExecuteAsync("   ", CancellationToken.None);
+        var exception = await Assert.ThrowsAsync<ArgumentException>(() => tool.ExecuteAsync("   ", CancellationToken.None));
 
-        result.Is("# Memory Section Error\r\nInvalid section identifier. Provide a non-empty section name.\r\n");
+        exception.Message.Is("Memory section identifier must not be null, empty, or whitespace. (Parameter 'section')");
     }
 
     [Fact]
-    public async Task ReadSectionTool_ReturnsHumanReadableInternalFailure()
+    public async Task ReadSectionTool_PropagatesInternalFailure()
     {
         var service = new SpyMemoryService
         {
@@ -236,13 +241,34 @@ public sealed class MemoryToolTests
         };
         var tool = new ReadSectionTool(service);
 
-        var result = await tool.ExecuteAsync("project-x", CancellationToken.None);
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => tool.ExecuteAsync("project-x", CancellationToken.None));
 
-        result.Is("# Memory Section Error\r\nInternal failure. Unable to read the requested memory section right now.\r\n");
+        exception.Message.Is("disk unavailable");
     }
 
     [Fact]
-    public async Task SearchTool_ReturnsHumanReadableResultsWithSectionContext()
+    public async Task ReadSectionTool_ReturnsStructuredEmptyResponseForExistingEmptySection()
+    {
+        var service = new SpyMemoryService
+        {
+            ReadResult = new MemoryContainer
+            {
+                Memories = new Dictionary<string, List<MemoryEntry>>(StringComparer.Ordinal)
+                {
+                    ["project-empty"] = []
+                }
+            }
+        };
+        var tool = new ReadSectionTool(service);
+
+        var result = await tool.ExecuteAsync("project-empty", CancellationToken.None);
+
+        result.Memories.Keys.ToArray().SequenceEqual(["project-empty"]).IsTrue();
+        result.Memories["project-empty"].Count.Is(0);
+    }
+
+    [Fact]
+    public async Task SearchTool_ReturnsStructuredResultsWithSectionContext()
     {
         var service = new SpyMemoryService
         {
@@ -258,22 +284,26 @@ public sealed class MemoryToolTests
         var result = await tool.ExecuteAsync("docker", CancellationToken.None);
 
         service.SearchQuery.Is("docker");
-        result.Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries).Length.Is(2);
+        result.Results.Count.Is(1);
+        result.Results[0].Text.Is("docker reminder");
+        result.Results[0].Section.Is("project-x");
+        result.Results[0].Tags!.SequenceEqual(["ops"]).IsTrue();
+        result.Results[0].Importance.Is("high");
     }
 
     [Fact]
-    public async Task SearchTool_ReturnsNoMatchesMessage()
+    public async Task SearchTool_ReturnsStructuredEmptyResults()
     {
         var service = new SpyMemoryService();
         var tool = new SearchTool(service);
 
         var result = await tool.ExecuteAsync("missing", CancellationToken.None);
 
-        result.Is($"# Memory Search Results{NewLine}No matches found.{NewLine}");
+        result.Results.Count.Is(0);
     }
 
     [Fact]
-    public async Task SearchTool_EmitsOneLinePerResultWithoutTextFlatteningLogic()
+    public async Task SearchTool_ReturnsOneStructuredItemPerResultWithoutTextFlatteningLogic()
     {
         var service = new SpyMemoryService
         {
@@ -291,7 +321,11 @@ public sealed class MemoryToolTests
 
         var result = await tool.ExecuteAsync("docker", CancellationToken.None);
 
-        result.Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries).Length.Is(3);
+        result.Results.Count.Is(2);
+        result.Results[0].Text.Is("docker reminder");
+        result.Results[0].Importance.Is("high");
+        result.Results[1].Text.Is("workspace note");
+        result.Results[1].Importance.Is(null);
     }
 
     [Fact]
@@ -309,7 +343,7 @@ public sealed class MemoryToolTests
     }
 
     [Fact]
-    public async Task RecallTool_RemainsUnchanged()
+    public async Task RecallTool_PreservesVisibleFieldsOnly()
     {
         var service = new SpyMemoryService
         {
@@ -319,7 +353,7 @@ public sealed class MemoryToolTests
                 {
                     [LongTerm] = [],
                     [MediumTerm] = [],
-                    [ShortTerm] = [new MemoryEntry(new DateTime(2026, 3, 11, 12, 0, 0), "short")]
+                    [ShortTerm] = [new MemoryEntry(new DateTime(2026, 3, 11, 12, 0, 0), "short", ["ops"], MemoryImportance.High)]
                 }
             }
         };
@@ -327,7 +361,12 @@ public sealed class MemoryToolTests
 
         var result = await tool.ExecuteAsync(CancellationToken.None);
 
-        result.Is($"# Memory{NewLine}## {LongTerm}{NewLine}{NewLine}## {MediumTerm}{NewLine}{NewLine}## {ShortTerm}{NewLine}- short{NewLine}");
+        result.Memories[LongTerm].Count.Is(0);
+        result.Memories[MediumTerm].Count.Is(0);
+        result.Memories[ShortTerm].Count.Is(1);
+        result.Memories[ShortTerm][0].Text.Is("short");
+        result.Memories[ShortTerm][0].Tags!.SequenceEqual(["ops"]).IsTrue();
+        result.Memories[ShortTerm][0].Importance.Is("high");
     }
 
     private sealed class SpyMemoryService : IMemoryService
