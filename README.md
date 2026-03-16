@@ -59,17 +59,53 @@ Example with an explicit file path and larger memory budget:
 
 ## What It Is
 
-EngramMcp is a small .NET MCP server that gives AI agents a persistent memory layer backed by a local JSON file. It exposes a narrow set of memory tools so an agent can reload prior context at session start, store new information in the right retention section, and later search memory by section, tags, or text.
+EngramMcp is a small local-first MCP server that gives AI agents a persistent memory layer backed by a plain JSON file.
 
-## Why It Exists
+It is designed for agents that should retain useful context across sessions: who the user is, how they work, what matters long-term, what is currently in flight, and what changed recently.
 
-Most agent sessions are stateless by default. EngramMcp solves that by providing:
+The goal is not to build a general knowledge system. The goal is to give an agent a memory that is durable, inspectable, and simple enough to trust.
 
-- **Persistent recall** - carry important context across sessions
-- **Scoped retention** - separate stable facts from changing context and recent work state
-- **Readable storage** - keep memory in a plain JSON file you can inspect yourself
-- **Fail-fast validation** - reject broken or malformed memory state on startup
-- **Serialized writes** - reduce the risk of overlapping file updates corrupting memory
+## Who It Is For
+
+EngramMcp is built for developers and local-first AI users who want persistent memory without handing that memory off to a hosted platform.
+
+It is a strong fit for people who want:
+
+- persistent memory for a coding agent or personal assistant
+- local, human-readable storage they can inspect themselves
+- a small and predictable memory model instead of a larger knowledge stack
+- clear separation between durable facts, evolving context, and recent work state
+
+## Best-Fit Use Cases
+
+EngramMcp works best for workflows like:
+
+- remembering user preferences, conventions, and working style
+- carrying project context forward across days or weeks
+- preserving recent progress so the next session can continue quickly
+- storing important facts and decisions in a form the human can audit
+- giving a local coding agent lightweight continuity without extra infrastructure
+
+## Who It Is Not For
+
+EngramMcp is intentionally narrow. It is not designed to be:
+
+- a vector database or semantic retrieval engine
+- a document indexing or RAG platform
+- a collaborative team knowledge base
+- a high-scale multi-user write-heavy service
+- an enterprise platform for permissions, governance, or hosted memory
+
+## What It Optimizes For
+
+EngramMcp optimizes for a specific kind of memory:
+
+- local-first
+- transparent
+- structured
+- durable for everyday agent workflows
+- small enough to reason about
+- simple enough to trust
 
 ## What You Can Use It For
 
