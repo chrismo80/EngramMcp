@@ -31,7 +31,31 @@ dotnet tool install -g EngramMcp
 
 By default, EngramMcp stores memory in `.engram/memory.json` under the current workspace directory.
 
+You can also pass startup options:
+
+- `--file <path>` keeps the memory file at a fixed location
+- `--size <small|normal|big>` selects the memory capacity profile; default is `small`
+
 Use an absolute file path for `--file` when you want the memory location to stay stable across launches, even outside the workspace.
+
+Example with an explicit file path and larger memory budget:
+
+```json
+{
+  "mcp": {
+    "memory": {
+      "type": "local",
+      "command": [
+        "engrammcp",
+        "--file",
+        "/absolute/path/to/memory.json",
+        "--size",
+        "big"
+      ]
+    }
+  }
+}
+```
 
 ## What It Is
 
@@ -61,13 +85,15 @@ Most agent sessions are stateless by default. EngramMcp solves that by providing
 
 ## Memory Model
 
-EngramMcp uses three built-in memory sections with code-defined capacities:
+EngramMcp uses three built-in memory sections with capacities derived from the selected size profile:
 
-- `long-term` - 20 entries
-- `medium-term` - 10 entries
-- `short-term` - 5 entries
+| Size | `long-term` | `medium-term` | `short-term` | custom sections |
+|------|-------------|---------------|--------------|-----------------|
+| `small` | 20 | 10 | 5 | 20 |
+| `normal` | 40 | 20 | 10 | 40 |
+| `big` | 80 | 40 | 20 | 80 |
 
-In addition, agents can create custom sections through `store(section, text, tags?, importance?)`. Custom sections are created lazily on first write and currently use a shared default capacity of 20 entries.
+Agents can create custom sections through `store(section, text, tags?, importance?)`. Custom sections are created lazily on first write and use the same capacity as `long-term` for the active size profile.
 
 Built-in sections appear first in `recall`. Custom sections are listed afterward as discoverable section names with entry counts, but their contents are not dumped into the default recall output.
 
@@ -131,6 +157,8 @@ Example file shape:
 - `search(query)` splits the query on whitespace and matches each term case-insensitively as a substring against section names, tags, and entry text
 
 `search` returns individual matching entries when at least one query term matches. Results are ranked by the number of distinct query terms matched, then sorted by `importance` descending and `timestamp` descending.
+
+Entries with `high` importance are highlighted in retrieval output with `- IMPORTANT!`.
 
 All write tools support optional `tags` and `importance`, including `store(section, text, tags?, importance?)` and the built-in section writers.
 
