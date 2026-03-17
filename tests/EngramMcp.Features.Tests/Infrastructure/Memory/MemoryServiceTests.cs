@@ -2,6 +2,7 @@ using EngramMcp.Core;
 using EngramMcp.Infrastructure.Memory;
 using EngramMcp.Features.Tests.TestDoubles;
 using Is.Assertions;
+using System.Text.Json;
 using Xunit;
 using static EngramMcp.Core.BuiltInMemorySections;
 
@@ -370,8 +371,9 @@ public sealed class MemoryServiceTests
             ["project-a"] = []
         })));
 
-        var exception = await Assert.ThrowsAsync<KeyNotFoundException>(() => service.ReadForMaintenanceAsync("project-x"));
+        var exception = await Assert.ThrowsAsync<MaintenanceSectionWriteException>(() => service.ReadForMaintenanceAsync("project-x"));
 
+        exception.Failure.Category.Is("section_not_found");
         exception.Message.Is($"Memory section 'project-x' was not found. Available sections: {LongTerm}, {MediumTerm}, {ShortTerm}, project-a.");
     }
 
@@ -527,6 +529,28 @@ public sealed class MemoryServiceTests
 
         exception.Failure.Category.Is("validation_failed");
         exception.Failure.Details!.Single().Field.Is("entries[0].timestamp");
+    }
+
+    [Fact]
+    public async Task WriteForMaintenanceAsync_RejectsOmittedTimestampProperty()
+    {
+        var service = new MemoryService(new CodeMemoryCatalog(MemorySize.Normal), new InMemoryStore(CreateContainer()));
+        var read = await service.ReadForMaintenanceAsync(ShortTerm);
+        var entry = JsonSerializer.Deserialize<MaintenanceMemoryEntry>("""
+            {
+              "text": "invalid"
+            }
+            """)!;
+
+        var exception = await Assert.ThrowsAsync<MaintenanceSectionWriteException>(() => service.WriteForMaintenanceAsync(
+            ShortTerm,
+            read.MaintenanceToken,
+            [entry]));
+
+        exception.Failure.Category.Is("validation_failed");
+        var detail = exception.Failure.Details!.Single();
+        detail.Field.Is("entries[0].timestamp");
+        detail.Message.Is("Timestamp is required and must be a valid round-trip datetime string.");
     }
 
     [Fact]

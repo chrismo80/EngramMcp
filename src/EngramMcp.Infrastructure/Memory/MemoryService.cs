@@ -54,7 +54,7 @@ public sealed class MemoryService(
         var normalizedSection = NormalizeSectionIdentifier(section);
         var container = await memoryStore.LoadAsync(cancellationToken).ConfigureAwait(false);
         var resolvedSection = TryResolveExistingSectionName(normalizedSection, container)
-                              ?? throw new KeyNotFoundException($"Memory section '{normalizedSection}' was not found. Available sections: {GetAvailableSectionNames(container)}.");
+                              ?? throw MaintenanceSectionWriteException.SectionNotFound($"Memory section '{normalizedSection}' was not found. Available sections: {GetAvailableSectionNames(container)}.");
         var entries = container.Memories.TryGetValue(resolvedSection, out var existingEntries) ? existingEntries : [];
 
         return new MaintenanceSectionReadResult

@@ -115,13 +115,14 @@ public sealed class MaintainSectionToolTests
     {
         var service = new SpyMemoryService
         {
-            MaintenanceReadException = new KeyNotFoundException("missing")
+            MaintenanceReadException = MaintenanceSectionWriteException.SectionNotFound("missing")
         };
         var tool = new MaintainSectionTool(service);
 
-        var exception = await Assert.ThrowsAsync<KeyNotFoundException>(() => tool.ExecuteAsync("read", "project-missing", cancellationToken: CancellationToken.None));
+        var result = await tool.ExecuteAsync("read", "project-missing", cancellationToken: CancellationToken.None);
 
-        exception.Message.Is("missing");
+        result.Failure!.Category.Is("section_not_found");
+        result.Failure.Message.Is("missing");
     }
 
     [Fact]
