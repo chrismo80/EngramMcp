@@ -36,6 +36,31 @@ public static class FeatureExtensions
         }
     }
 
+    extension(MaintenanceSectionReadResult result)
+    {
+        internal MaintainSectionResponse ToMaintainSectionResponse()
+        {
+            return new MaintainSectionResponse
+            {
+                Section = result.Section,
+                Entries = result.Entries,
+                MaintenanceToken = result.MaintenanceToken
+            };
+        }
+    }
+
+    extension(MaintenanceSectionWriteResult result)
+    {
+        internal MaintainSectionResponse ToMaintainSectionResponse()
+        {
+            return new MaintainSectionResponse
+            {
+                Section = result.Section,
+                Entries = result.Entries
+            };
+        }
+    }
+
     extension(IReadOnlyList<MemorySearchResult> results)
     {
         internal SearchResponse ToSearchResponse()

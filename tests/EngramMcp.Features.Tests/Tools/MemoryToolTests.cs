@@ -2,6 +2,7 @@ using EngramMcp.Core;
 using EngramMcp.Core.Abstractions;
 using EngramMcp.Features.Tools;
 using Is.Assertions;
+using System.Text.Json;
 using Xunit;
 using static EngramMcp.Core.BuiltInMemorySections;
 
@@ -268,6 +269,166 @@ public sealed class MemoryToolTests
     }
 
     [Fact]
+    public async Task MaintainSectionTool_ReadMode_ReturnsRawEntriesAndToken()
+    {
+        var service = new SpyMemoryService
+        {
+            MaintenanceReadResult = new MaintenanceSectionReadResult
+            {
+                Section = ShortTerm,
+                Entries =
+                [
+                    new MaintenanceMemoryEntry
+                    {
+                        Timestamp = "2026-03-11T12:00:00.0000000+00:00",
+                        Text = "short",
+                        Tags = ["ops"],
+                        Importance = "high"
+                    }
+                ],
+                MaintenanceToken = "token-1"
+            }
+        };
+        var tool = new MaintainSectionTool(service);
+
+        var result = await tool.ExecuteAsync("read", ShortTerm, cancellationToken: CancellationToken.None);
+
+        service.MaintenanceReadSection.Is(ShortTerm);
+        result.Section.Is(ShortTerm);
+        result.Entries.Count.Is(1);
+        result.Entries[0].Timestamp.Is("2026-03-11T12:00:00.0000000+00:00");
+        result.Entries[0].Text.Is("short");
+        result.Entries[0].Tags!.SequenceEqual(["ops"]).IsTrue();
+        result.Entries[0].Importance.Is("high");
+        result.MaintenanceToken.Is("token-1");
+    }
+
+    [Fact]
+    public async Task MaintainSectionTool_WriteMode_ReturnsStoredEntriesWithoutToken()
+    {
+        var service = new SpyMemoryService
+        {
+            MaintenanceWriteResult = new MaintenanceSectionWriteResult
+            {
+                Section = "project-x",
+                Entries =
+                [
+                    new MaintenanceMemoryEntry
+                    {
+                        Timestamp = "2026-03-11T12:00:00.0000000+00:00",
+                        Text = "custom"
+                    }
+                ]
+            }
+        };
+        var tool = new MaintainSectionTool(service);
+
+        var result = await tool.ExecuteAsync(
+            "write",
+            "project-x",
+            maintenanceToken: "token-1",
+            entries:
+            [
+                new MaintenanceMemoryEntry
+                {
+                    Timestamp = "2026-03-11T12:00:00.0000000+00:00",
+                    Text = "custom"
+                }
+            ],
+            cancellationToken: CancellationToken.None);
+
+        service.MaintenanceWriteSection.Is("project-x");
+        service.MaintenanceWriteToken.Is("token-1");
+        service.MaintenanceWriteEntries!.Count.Is(1);
+        result.Section.Is("project-x");
+        result.Entries.Count.Is(1);
+        result.Entries[0].Text.Is("custom");
+        result.MaintenanceToken.Is(null);
+    }
+
+    [Fact]
+    public async Task MaintainSectionTool_ReadMode_PropagatesUnknownSectionFailure()
+    {
+        var service = new SpyMemoryService
+        {
+            MaintenanceReadException = new KeyNotFoundException("missing")
+        };
+        var tool = new MaintainSectionTool(service);
+
+        var exception = await Assert.ThrowsAsync<KeyNotFoundException>(() => tool.ExecuteAsync("read", "project-missing", cancellationToken: CancellationToken.None));
+
+        exception.Message.Is("missing");
+    }
+
+    [Fact]
+    public async Task MaintainSectionTool_ThrowsForInvalidMode()
+    {
+        var tool = new MaintainSectionTool(new SpyMemoryService());
+
+        var exception = await Assert.ThrowsAsync<ArgumentException>(() => tool.ExecuteAsync("merge", ShortTerm, cancellationToken: CancellationToken.None));
+
+        exception.Message.Is("Maintenance mode must be 'read' or 'write'. (Parameter 'mode')");
+    }
+
+    [Fact]
+    public async Task MaintainSectionTool_WriteMode_ThrowsWhenMaintenanceTokenIsMissing()
+    {
+        var tool = new MaintainSectionTool(new SpyMemoryService());
+
+        var exception = await Assert.ThrowsAsync<ArgumentException>(() => tool.ExecuteAsync(
+            "write",
+            ShortTerm,
+            entries: [],
+            cancellationToken: CancellationToken.None));
+
+        exception.Message.Is("Maintenance token is required for write mode. (Parameter 'maintenanceToken')");
+    }
+
+    [Fact]
+    public async Task MaintainSectionTool_WriteMode_ThrowsWhenEntriesAreMissing()
+    {
+        var tool = new MaintainSectionTool(new SpyMemoryService());
+
+        var exception = await Assert.ThrowsAsync<ArgumentException>(() => tool.ExecuteAsync(
+            "write",
+            ShortTerm,
+            maintenanceToken: "token-1",
+            cancellationToken: CancellationToken.None));
+
+        exception.Message.Is("Entries are required for write mode. (Parameter 'entries')");
+    }
+
+    [Fact]
+    public void MaintainSectionResponse_SerializesStorageShapedEntriesAndOmitsNullOptionals()
+    {
+        var response = new MaintainSectionResponse
+        {
+            Section = ShortTerm,
+            Entries =
+            [
+                new MaintenanceMemoryEntry
+                {
+                    Timestamp = "2026-03-11T12:00:00.0000000+00:00",
+                    Text = "short"
+                }
+            ],
+            MaintenanceToken = "token-1"
+        };
+
+        var json = JsonSerializer.Serialize(response);
+        using var document = JsonDocument.Parse(json);
+        var root = document.RootElement;
+
+        root.GetProperty("section").GetString().Is(ShortTerm);
+        root.GetProperty("maintenanceToken").GetString().Is("token-1");
+        root.GetProperty("entries").GetArrayLength().Is(1);
+        root.GetProperty("entries")[0].GetProperty("timestamp").GetString().Is("2026-03-11T12:00:00.0000000+00:00");
+        root.GetProperty("entries")[0].GetProperty("text").GetString().Is("short");
+        root.GetProperty("entries")[0].TryGetProperty("tags", out _).IsFalse();
+        root.GetProperty("entries")[0].TryGetProperty("importance", out _).IsFalse();
+    }
+
+    [Fact]
     public async Task SearchTool_ReturnsStructuredResultsWithSectionContext()
     {
         var service = new SpyMemoryService
@@ -383,15 +544,40 @@ public sealed class MemoryToolTests
 
         public string? SearchQuery { get; private set; }
 
+        public string? MaintenanceReadSection { get; private set; }
+
+        public string? MaintenanceWriteSection { get; private set; }
+
+        public string? MaintenanceWriteToken { get; private set; }
+
+        public IReadOnlyList<MaintenanceMemoryEntry>? MaintenanceWriteEntries { get; private set; }
+
         public MemoryContainer RecallResult { get; init; } = new();
 
         public MemoryContainer ReadResult { get; init; } = new();
+
+        public MaintenanceSectionReadResult MaintenanceReadResult { get; init; } = new()
+        {
+            Section = ShortTerm,
+            Entries = [],
+            MaintenanceToken = "token"
+        };
+
+        public MaintenanceSectionWriteResult MaintenanceWriteResult { get; init; } = new()
+        {
+            Section = ShortTerm,
+            Entries = []
+        };
 
         public IReadOnlyList<MemorySearchResult> SearchResult { get; init; } = [];
 
         public Exception? ReadException { get; init; }
 
         public Exception? SearchException { get; init; }
+
+        public Exception? MaintenanceReadException { get; init; }
+
+        public Exception? MaintenanceWriteException { get; init; }
 
         public Task StoreAsync(
             string section,
@@ -421,6 +607,15 @@ public sealed class MemoryToolTests
             return Task.FromResult(RecallResult);
         }
 
+        public Task<MaintenanceSectionReadResult> ReadForMaintenanceAsync(string section, CancellationToken cancellationToken = default)
+        {
+            MaintenanceReadSection = section;
+
+            return MaintenanceReadException is null
+                ? Task.FromResult(MaintenanceReadResult)
+                : Task.FromException<MaintenanceSectionReadResult>(MaintenanceReadException);
+        }
+
         public Task<IReadOnlyList<MemorySearchResult>> SearchAsync(string query, CancellationToken cancellationToken = default)
         {
             SearchQuery = query;
@@ -428,6 +623,21 @@ public sealed class MemoryToolTests
             return SearchException is null
                 ? Task.FromResult(SearchResult)
                 : Task.FromException<IReadOnlyList<MemorySearchResult>>(SearchException);
+        }
+
+        public Task<MaintenanceSectionWriteResult> WriteForMaintenanceAsync(
+            string section,
+            string maintenanceToken,
+            IReadOnlyList<MaintenanceMemoryEntry> entries,
+            CancellationToken cancellationToken = default)
+        {
+            MaintenanceWriteSection = section;
+            MaintenanceWriteToken = maintenanceToken;
+            MaintenanceWriteEntries = entries;
+
+            return MaintenanceWriteException is null
+                ? Task.FromResult(MaintenanceWriteResult)
+                : Task.FromException<MaintenanceSectionWriteResult>(MaintenanceWriteException);
         }
     }
 }

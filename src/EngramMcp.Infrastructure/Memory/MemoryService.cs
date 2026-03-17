@@ -1,11 +1,20 @@
+using System.Globalization;
 using EngramMcp.Core;
 using EngramMcp.Core.Abstractions;
 
 namespace EngramMcp.Infrastructure.Memory;
 
-public sealed class MemoryService(IMemoryCatalog memoryCatalog, IMemoryStore memoryStore)
+public sealed class MemoryService(
+    IMemoryCatalog memoryCatalog,
+    IMemoryStore memoryStore,
+    IMaintenanceTokenProvider maintenanceTokenProvider)
     : IMemoryService
 {
+    public MemoryService(IMemoryCatalog memoryCatalog, IMemoryStore memoryStore)
+        : this(memoryCatalog, memoryStore, new InMemoryMaintenanceTokenProvider())
+    {
+    }
+
     public Task StoreAsync(
         string section,
         string text,
@@ -36,6 +45,22 @@ public sealed class MemoryService(IMemoryCatalog memoryCatalog, IMemoryStore mem
             return CreateSectionDocument(resolvedSection, container.Memories.TryGetValue(resolvedSection, out var entries) ? entries : []);
 
         throw new KeyNotFoundException($"Memory section '{normalizedSection}' was not found. Available sections: {GetAvailableSectionNames(container)}.");
+    }
+
+    public async Task<MaintenanceSectionReadResult> ReadForMaintenanceAsync(string section, CancellationToken cancellationToken = default)
+    {
+        var normalizedSection = NormalizeSectionIdentifier(section);
+        var container = await memoryStore.LoadAsync(cancellationToken).ConfigureAwait(false);
+        var resolvedSection = TryResolveExistingSectionName(normalizedSection, container)
+                              ?? throw new KeyNotFoundException($"Memory section '{normalizedSection}' was not found. Available sections: {GetAvailableSectionNames(container)}.");
+        var entries = container.Memories.TryGetValue(resolvedSection, out var existingEntries) ? existingEntries : [];
+
+        return new MaintenanceSectionReadResult
+        {
+            Section = resolvedSection,
+            Entries = [.. entries.Select(ToMaintenanceEntry)],
+            MaintenanceToken = maintenanceTokenProvider.Issue(resolvedSection)
+        };
     }
 
     public async Task<MemoryContainer> RecallAsync(CancellationToken cancellationToken = default)
@@ -73,6 +98,63 @@ public sealed class MemoryService(IMemoryCatalog memoryCatalog, IMemoryStore mem
             .ToList();
     }
 
+    public async Task<MaintenanceSectionWriteResult> WriteForMaintenanceAsync(
+        string section,
+        string maintenanceToken,
+        IReadOnlyList<MaintenanceMemoryEntry> entries,
+        CancellationToken cancellationToken = default)
+    {
+        var normalizedSection = NormalizeSectionIdentifier(section);
+
+        if (string.IsNullOrWhiteSpace(maintenanceToken))
+            throw new ArgumentException("Maintenance token must not be null, empty, or whitespace.", nameof(maintenanceToken));
+
+        ArgumentNullException.ThrowIfNull(entries);
+
+        var replacementEntries = entries.Select(ToMemoryEntry).ToList();
+        string? resolvedSection = null;
+        MaintenanceTokenReservation reservation = default;
+        var hasReservation = false;
+
+        try
+        {
+            await memoryStore.UpdateAsync(
+                container =>
+                {
+                    resolvedSection = TryResolveExistingSectionName(normalizedSection, container)
+                                      ?? throw new KeyNotFoundException($"Memory section '{normalizedSection}' was not found. Available sections: {GetAvailableSectionNames(container)}.");
+
+                    if (!maintenanceTokenProvider.TryReserveForSection(maintenanceToken, resolvedSection, out reservation))
+                        throw new ArgumentException($"Maintenance token is invalid for section '{resolvedSection}'.", nameof(maintenanceToken));
+
+                    hasReservation = true;
+
+                    var memory = memoryCatalog.GetByName(resolvedSection);
+
+                    if (replacementEntries.Count > memory.Capacity)
+                        throw new InvalidOperationException($"Memory section '{resolvedSection}' exceeds capacity {memory.Capacity}.");
+
+                    container.Memories[resolvedSection] = [.. replacementEntries];
+                },
+                cancellationToken).ConfigureAwait(false);
+        }
+        catch
+        {
+            if (hasReservation)
+                maintenanceTokenProvider.Release(reservation);
+
+            throw;
+        }
+
+        maintenanceTokenProvider.Complete(reservation);
+
+        return new MaintenanceSectionWriteResult
+        {
+            Section = resolvedSection!,
+            Entries = [.. replacementEntries.Select(ToMaintenanceEntry)]
+        };
+    }
+
     private static MemoryContainer CreateSectionDocument(string section, IReadOnlyList<MemoryEntry> entries)
     {
         return new MemoryContainer
@@ -97,6 +179,37 @@ public sealed class MemoryService(IMemoryCatalog memoryCatalog, IMemoryStore mem
             result.Section.Contains(token, StringComparison.OrdinalIgnoreCase)
             || result.Entry.Text.Contains(token, StringComparison.OrdinalIgnoreCase)
             || result.Entry.Tags.Any(tag => tag.Contains(token, StringComparison.OrdinalIgnoreCase)));
+    }
+
+    private static MaintenanceMemoryEntry ToMaintenanceEntry(MemoryEntry entry)
+    {
+        return new MaintenanceMemoryEntry
+        {
+            Timestamp = entry.Timestamp.ToString("O", CultureInfo.InvariantCulture),
+            Text = entry.Text,
+            Tags = entry.Tags.Count == 0 ? null : entry.Tags,
+            Importance = entry.Importance == MemoryImportance.Normal ? null : entry.Importance.ToSerializedValue()
+        };
+    }
+
+    private static MemoryEntry ToMemoryEntry(MaintenanceMemoryEntry entry)
+    {
+        ArgumentNullException.ThrowIfNull(entry);
+
+        if (!DateTime.TryParse(entry.Timestamp, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var timestamp))
+            throw new ArgumentException($"Maintenance entry timestamp '{entry.Timestamp}' is invalid.", nameof(entry));
+
+        MemoryImportance? importance = null;
+
+        if (entry.Importance is { } importanceValue)
+        {
+            if (!importanceValue.TryParseSerializedValue(out var parsedImportance))
+                throw new ArgumentException($"Maintenance entry importance '{importanceValue}' is invalid.", nameof(entry));
+
+            importance = parsedImportance;
+        }
+
+        return new MemoryEntry(timestamp, entry.Text, entry.Tags, importance);
     }
 
     private string GetAvailableSectionNames(MemoryContainer container)

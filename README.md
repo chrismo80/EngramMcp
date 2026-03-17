@@ -105,6 +105,7 @@ EngramMcp optimizes for a specific kind of memory:
 | **Store Medium-Term** | Save useful context that may change over time                                      |
 | **Store Short-Term**  | Save the recent working state for fast next-session continuation                   |
 | **Read Section**      | Read the contents of one specific memory section                                   |
+| **Maintain Section**  | Read or replace one existing section with a token-guarded maintenance workflow     |
 | **Store**             | Save memory into any named section, including custom sections created on first use |
 | **Search**            | Search individual memory entries across section names, tags, and text              |
 
@@ -259,6 +260,13 @@ Example `search(query)` response shape:
 ```
 
 All write tools support optional `tags` and `importance`, including `store(section, text, tags?, importance?)` and the built-in section writers.
+
+`maintain_section` is the only maintenance tool. It works on exactly one existing section at a time:
+
+- `mode = "read"` returns the canonical section name, raw storage-shaped `entries`, and a `maintenanceToken`
+- `mode = "write"` requires the matching token and replaces that section with the provided raw `entries`
+- maintenance reads fail for unknown sections and do not issue tokens
+- maintenance writes do not create sections, do not run retention, and fail when the replacement list exceeds section capacity
 
 
 ## System Prompt
