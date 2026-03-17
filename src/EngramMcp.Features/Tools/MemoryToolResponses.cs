@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using EngramMcp.Core;
 
 namespace EngramMcp.Features.Tools;
 
@@ -62,4 +63,17 @@ public sealed record SearchResponse
 {
     [JsonPropertyName("results")]
     public required IReadOnlyList<SearchItemResponse> Results { get; init; }
+}
+
+public sealed record MaintainSectionResponse
+{
+    [JsonPropertyName("section")]
+    public required string Section { get; init; }
+
+    [JsonPropertyName("entries")]
+    public required IReadOnlyList<MaintenanceMemoryEntry> Entries { get; init; }
+
+    [JsonPropertyName("maintenanceToken")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? MaintenanceToken { get; init; }
 }
