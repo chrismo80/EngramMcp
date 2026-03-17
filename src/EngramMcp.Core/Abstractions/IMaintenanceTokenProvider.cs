@@ -4,7 +4,7 @@ public interface IMaintenanceTokenProvider
 {
     string Issue(string section);
 
-    bool TryReserveForSection(string token, string section, out MaintenanceTokenReservation reservation);
+    MaintenanceTokenReservationStatus TryReserveForSection(string token, string section, out MaintenanceTokenReservation reservation);
 
     void Complete(MaintenanceTokenReservation reservation);
 

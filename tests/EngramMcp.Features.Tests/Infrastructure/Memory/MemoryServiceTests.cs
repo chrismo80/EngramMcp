@@ -427,26 +427,28 @@ public sealed class MemoryServiceTests
         var service = new MemoryService(new CodeMemoryCatalog(MemorySize.Normal), new InMemoryStore(CreateContainer()));
         var read = await service.ReadForMaintenanceAsync(ShortTerm);
 
-        var exception = await Assert.ThrowsAsync<ArgumentException>(() => service.WriteForMaintenanceAsync(MediumTerm, read.MaintenanceToken, []));
+        var exception = await Assert.ThrowsAsync<MaintenanceSectionWriteException>(() => service.WriteForMaintenanceAsync(MediumTerm, read.MaintenanceToken, [CreateMaintenanceEntry("moved") ]));
 
-        exception.Message.Is($"Maintenance token is invalid for section '{MediumTerm}'. (Parameter 'maintenanceToken')");
+        exception.Failure.Category.Is("maintenance_token_invalid");
+        exception.Failure.Message.Is($"Maintenance token is invalid for section '{MediumTerm}'. Read the section again and use the returned token.");
     }
 
     [Fact]
-    public async Task WriteForMaintenanceAsync_ThrowsWhenSingleUseTokenIsReused()
+    public async Task WriteForMaintenanceAsync_ThrowsWhenTokenIsStaleAfterSuccessfulWrite()
     {
         var service = new MemoryService(new CodeMemoryCatalog(MemorySize.Normal), new InMemoryStore(CreateContainer()));
         var read = await service.ReadForMaintenanceAsync(ShortTerm);
 
-        await service.WriteForMaintenanceAsync(ShortTerm, read.MaintenanceToken, []);
+        await service.WriteForMaintenanceAsync(ShortTerm, read.MaintenanceToken, [CreateMaintenanceEntry("first")]);
 
-        var exception = await Assert.ThrowsAsync<ArgumentException>(() => service.WriteForMaintenanceAsync(ShortTerm, read.MaintenanceToken, []));
+        var exception = await Assert.ThrowsAsync<MaintenanceSectionWriteException>(() => service.WriteForMaintenanceAsync(ShortTerm, read.MaintenanceToken, [CreateMaintenanceEntry("second") ]));
 
-        exception.Message.Is($"Maintenance token is invalid for section '{ShortTerm}'. (Parameter 'maintenanceToken')");
+        exception.Failure.Category.Is("maintenance_token_stale");
+        exception.Failure.Message.Is($"Maintenance token is stale for section '{ShortTerm}'. Read the section again before any further maintenance.");
     }
 
     [Fact]
-    public async Task WriteForMaintenanceAsync_ThrowsForInvalidPayload()
+    public async Task WriteForMaintenanceAsync_RejectsInvalidImportance()
     {
         var memoryStore = new InMemoryStore(CreateContainer(new Dictionary<string, List<MemoryEntry>>(StringComparer.Ordinal)
         {
@@ -457,7 +459,7 @@ public sealed class MemoryServiceTests
         var service = new MemoryService(new CodeMemoryCatalog(MemorySize.Normal), memoryStore);
         var read = await service.ReadForMaintenanceAsync(ShortTerm);
 
-        var exception = await Assert.ThrowsAsync<ArgumentException>(() => service.WriteForMaintenanceAsync(
+        var exception = await Assert.ThrowsAsync<MaintenanceSectionWriteException>(() => service.WriteForMaintenanceAsync(
             ShortTerm,
             read.MaintenanceToken,
             [
@@ -469,12 +471,15 @@ public sealed class MemoryServiceTests
                 }
             ]));
 
-        exception.Message.Is("Maintenance entry importance 'urgent' is invalid. (Parameter 'entry')");
+        exception.Failure.Category.Is("validation_failed");
+        var detail = exception.Failure.Details!.Single();
+        detail.Field.Is("entries[0].importance");
+        detail.Message.Is("Importance 'urgent' is invalid. Supported values: low, normal, high.");
         memoryStore.Container.Memories[ShortTerm].Select(entry => entry.Text).ToArray().SequenceEqual(["old short"]).IsTrue();
     }
 
     [Fact]
-    public async Task WriteForMaintenanceAsync_ThrowsForInvalidTimestamp()
+    public async Task WriteForMaintenanceAsync_RejectsInvalidTimestamp()
     {
         var memoryStore = new InMemoryStore(CreateContainer(new Dictionary<string, List<MemoryEntry>>(StringComparer.Ordinal)
         {
@@ -485,7 +490,7 @@ public sealed class MemoryServiceTests
         var service = new MemoryService(new CodeMemoryCatalog(MemorySize.Normal), memoryStore);
         var read = await service.ReadForMaintenanceAsync(ShortTerm);
 
-        var exception = await Assert.ThrowsAsync<ArgumentException>(() => service.WriteForMaintenanceAsync(
+        var exception = await Assert.ThrowsAsync<MaintenanceSectionWriteException>(() => service.WriteForMaintenanceAsync(
             ShortTerm,
             read.MaintenanceToken,
             [
@@ -496,8 +501,102 @@ public sealed class MemoryServiceTests
                 }
             ]));
 
-        exception.Message.Is("Maintenance entry timestamp 'not-a-timestamp' is invalid. (Parameter 'entry')");
+        exception.Failure.Category.Is("validation_failed");
+        var detail = exception.Failure.Details!.Single();
+        detail.Field.Is("entries[0].timestamp");
+        detail.Message.Is("Timestamp 'not-a-timestamp' is invalid.");
         memoryStore.Container.Memories[ShortTerm].Select(entry => entry.Text).ToArray().SequenceEqual(["old short"]).IsTrue();
+    }
+
+    [Fact]
+    public async Task WriteForMaintenanceAsync_RejectsMissingTimestamp()
+    {
+        var service = new MemoryService(new CodeMemoryCatalog(MemorySize.Normal), new InMemoryStore(CreateContainer()));
+        var read = await service.ReadForMaintenanceAsync(ShortTerm);
+
+        var exception = await Assert.ThrowsAsync<MaintenanceSectionWriteException>(() => service.WriteForMaintenanceAsync(
+            ShortTerm,
+            read.MaintenanceToken,
+            [
+                new MaintenanceMemoryEntry
+                {
+                    Timestamp = " ",
+                    Text = "invalid"
+                }
+            ]));
+
+        exception.Failure.Category.Is("validation_failed");
+        exception.Failure.Details!.Single().Field.Is("entries[0].timestamp");
+    }
+
+    [Fact]
+    public async Task WriteForMaintenanceAsync_RejectsMissingText()
+    {
+        var service = new MemoryService(new CodeMemoryCatalog(MemorySize.Normal), new InMemoryStore(CreateContainer()));
+        var read = await service.ReadForMaintenanceAsync(ShortTerm);
+
+        var exception = await Assert.ThrowsAsync<MaintenanceSectionWriteException>(() => service.WriteForMaintenanceAsync(
+            ShortTerm,
+            read.MaintenanceToken,
+            [
+                new MaintenanceMemoryEntry
+                {
+                    Timestamp = "2026-03-12T08:30:00.0000000Z",
+                    Text = "   "
+                }
+            ]));
+
+        exception.Failure.Category.Is("validation_failed");
+        exception.Failure.Details!.Single().Field.Is("entries[0].text");
+    }
+
+    [Fact]
+    public async Task WriteForMaintenanceAsync_RejectsEmptyReplacementList()
+    {
+        var memoryStore = new InMemoryStore(CreateContainer(new Dictionary<string, List<MemoryEntry>>(StringComparer.Ordinal)
+        {
+            [ShortTerm] = [new(new DateTime(2026, 3, 11, 9, 0, 0, DateTimeKind.Utc), "old short")],
+            [MediumTerm] = [],
+            [LongTerm] = []
+        }));
+        var service = new MemoryService(new CodeMemoryCatalog(MemorySize.Normal), memoryStore);
+        var read = await service.ReadForMaintenanceAsync(ShortTerm);
+
+        var exception = await Assert.ThrowsAsync<MaintenanceSectionWriteException>(() => service.WriteForMaintenanceAsync(ShortTerm, read.MaintenanceToken, []));
+
+        exception.Failure.Category.Is("validation_failed");
+        exception.Failure.Details!.Single().Field.Is("entries");
+        memoryStore.Container.Memories[ShortTerm].Count.Is(1);
+    }
+
+    [Fact]
+    public async Task WriteForMaintenanceAsync_RejectsMissingMaintenanceToken()
+    {
+        var service = new MemoryService(new CodeMemoryCatalog(MemorySize.Normal), new InMemoryStore(CreateContainer()));
+
+        var exception = await Assert.ThrowsAsync<MaintenanceSectionWriteException>(() => service.WriteForMaintenanceAsync(ShortTerm, " ", [CreateMaintenanceEntry("entry") ]));
+
+        exception.Failure.Category.Is("maintenance_token_missing");
+    }
+
+    [Fact]
+    public async Task WriteForMaintenanceAsync_RejectsUnknownSection()
+    {
+        var service = new MemoryService(new CodeMemoryCatalog(MemorySize.Normal), new InMemoryStore(CreateContainer()));
+
+        var exception = await Assert.ThrowsAsync<MaintenanceSectionWriteException>(() => service.WriteForMaintenanceAsync("project-x", "bogus", [CreateMaintenanceEntry("entry") ]));
+
+        exception.Failure.Category.Is("section_not_found");
+    }
+
+    [Fact]
+    public async Task WriteForMaintenanceAsync_RejectsBogusToken()
+    {
+        var service = new MemoryService(new CodeMemoryCatalog(MemorySize.Normal), new InMemoryStore(CreateContainer()));
+
+        var exception = await Assert.ThrowsAsync<MaintenanceSectionWriteException>(() => service.WriteForMaintenanceAsync(ShortTerm, "bogus", [CreateMaintenanceEntry("entry") ]));
+
+        exception.Failure.Category.Is("maintenance_token_invalid");
     }
 
     [Fact]
@@ -506,7 +605,7 @@ public sealed class MemoryServiceTests
         var service = new MemoryService(new CodeMemoryCatalog(MemorySize.Small), new InMemoryStore(CreateContainer()));
         var read = await service.ReadForMaintenanceAsync(ShortTerm);
 
-        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => service.WriteForMaintenanceAsync(
+        var exception = await Assert.ThrowsAsync<MaintenanceSectionWriteException>(() => service.WriteForMaintenanceAsync(
             ShortTerm,
             read.MaintenanceToken,
             Enumerable.Range(1, 6)
@@ -517,7 +616,8 @@ public sealed class MemoryServiceTests
                 })
                 .ToArray()));
 
-        exception.Message.Is($"Memory section '{ShortTerm}' exceeds capacity 5.");
+        exception.Failure.Category.Is("validation_failed");
+        exception.Failure.Details!.Single().Field.Is("entries");
     }
 
     [Fact]
@@ -526,7 +626,7 @@ public sealed class MemoryServiceTests
         var service = new MemoryService(new CodeMemoryCatalog(MemorySize.Small), new InMemoryStore(CreateContainer()));
         var read = await service.ReadForMaintenanceAsync(ShortTerm);
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() => service.WriteForMaintenanceAsync(
+        await Assert.ThrowsAsync<MaintenanceSectionWriteException>(() => service.WriteForMaintenanceAsync(
             ShortTerm,
             read.MaintenanceToken,
             Enumerable.Range(1, 6)
@@ -553,7 +653,7 @@ public sealed class MemoryServiceTests
     }
 
     [Fact]
-    public async Task WriteForMaintenanceAsync_AllowsEmptyReplacementList()
+    public async Task WriteForMaintenanceAsync_NormalizesTagsOnSuccessfulWrite()
     {
         var memoryStore = new InMemoryStore(CreateContainer(new Dictionary<string, List<MemoryEntry>>(StringComparer.Ordinal)
         {
@@ -564,11 +664,53 @@ public sealed class MemoryServiceTests
         var service = new MemoryService(new CodeMemoryCatalog(MemorySize.Normal), memoryStore);
         var read = await service.ReadForMaintenanceAsync(ShortTerm);
 
-        var result = await service.WriteForMaintenanceAsync(ShortTerm, read.MaintenanceToken, []);
+        var result = await service.WriteForMaintenanceAsync(
+            ShortTerm,
+            read.MaintenanceToken,
+            [
+                new MaintenanceMemoryEntry
+                {
+                    Timestamp = "2026-03-12T08:30:00.0000000Z",
+                    Text = "normalized",
+                    Tags = ["Docker", "ops", "docker", "  ", null!]
+                }
+            ]);
 
         result.Section.Is(ShortTerm);
-        result.Entries.Count.Is(0);
-        memoryStore.Container.Memories[ShortTerm].Count.Is(0);
+        result.Entries[0].Tags!.SequenceEqual(["docker", "ops"]).IsTrue();
+        memoryStore.Container.Memories[ShortTerm][0].Tags.SequenceEqual(["docker", "ops"]).IsTrue();
+    }
+
+    [Fact]
+    public async Task WriteForMaintenanceAsync_SuccessfulNoOpWriteInvalidatesPriorTokens()
+    {
+        var service = new MemoryService(new CodeMemoryCatalog(MemorySize.Normal), new InMemoryStore(CreateContainer(new Dictionary<string, List<MemoryEntry>>(StringComparer.Ordinal)
+        {
+            [ShortTerm] = [new(new DateTime(2026, 3, 11, 9, 0, 0, DateTimeKind.Utc), "old short")],
+            [MediumTerm] = [],
+            [LongTerm] = []
+        })));
+        var firstRead = await service.ReadForMaintenanceAsync(ShortTerm);
+
+        await service.WriteForMaintenanceAsync(ShortTerm, firstRead.MaintenanceToken, [CreateMaintenanceEntry("old short", "2026-03-11T09:00:00.0000000Z")]);
+
+        var exception = await Assert.ThrowsAsync<MaintenanceSectionWriteException>(() => service.WriteForMaintenanceAsync(ShortTerm, firstRead.MaintenanceToken, [CreateMaintenanceEntry("again") ]));
+
+        exception.Failure.Category.Is("maintenance_token_stale");
+    }
+
+    [Fact]
+    public async Task WriteForMaintenanceAsync_SuccessfulWriteMakesAllPreviouslyIssuedTokensStale()
+    {
+        var service = new MemoryService(new CodeMemoryCatalog(MemorySize.Normal), new InMemoryStore(CreateContainer()));
+        var firstRead = await service.ReadForMaintenanceAsync(ShortTerm);
+        var secondRead = await service.ReadForMaintenanceAsync(ShortTerm);
+
+        await service.WriteForMaintenanceAsync(ShortTerm, firstRead.MaintenanceToken, [CreateMaintenanceEntry("first")]);
+
+        var secondException = await Assert.ThrowsAsync<MaintenanceSectionWriteException>(() => service.WriteForMaintenanceAsync(ShortTerm, secondRead.MaintenanceToken, [CreateMaintenanceEntry("second") ]));
+
+        secondException.Failure.Category.Is("maintenance_token_stale");
     }
 
     [Fact]
@@ -604,10 +746,11 @@ public sealed class MemoryServiceTests
             var secondTask = AttemptMaintenanceWriteAsync(service, read.MaintenanceToken, secondEntries);
 
             var results = await Task.WhenAll(firstTask, secondTask);
+            var failureCategory = results.Single(result => !result.Succeeded).Exception!.Failure.Category;
 
             results.Count(result => result.Succeeded).Is(1);
             results.Count(result => !result.Succeeded).Is(1);
-            results.Single(result => !result.Succeeded).Exception!.Message.Is($"Maintenance token is invalid for section '{ShortTerm}'. (Parameter 'maintenanceToken')");
+            new[] { "maintenance_token_invalid", "maintenance_token_stale" }.Contains(failureCategory).IsTrue();
 
             var storedTexts = (await service.ReadAsync(ShortTerm)).Memories[ShortTerm].Select(entry => entry.Text).ToArray();
             storedTexts.Length.Is(1);
@@ -913,11 +1056,20 @@ public sealed class MemoryServiceTests
             var result = await service.WriteForMaintenanceAsync(ShortTerm, maintenanceToken, entries);
             return new MaintenanceWriteAttempt(true, result.Entries.SingleOrDefault()?.Text, null);
         }
-        catch (Exception exception)
+        catch (MaintenanceSectionWriteException exception)
         {
             return new MaintenanceWriteAttempt(false, null, exception);
         }
     }
 
-    private sealed record MaintenanceWriteAttempt(bool Succeeded, string? StoredText, Exception? Exception);
+    private static MaintenanceMemoryEntry CreateMaintenanceEntry(string text, string timestamp = "2026-03-12T08:30:00.0000000Z")
+    {
+        return new MaintenanceMemoryEntry
+        {
+            Timestamp = timestamp,
+            Text = text
+        };
+    }
+
+    private sealed record MaintenanceWriteAttempt(bool Succeeded, string? StoredText, MaintenanceSectionWriteException? Exception);
 }

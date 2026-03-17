@@ -105,7 +105,7 @@ EngramMcp optimizes for a specific kind of memory:
 | **Store Medium-Term** | Save useful context that may change over time                                      |
 | **Store Short-Term**  | Save the recent working state for fast next-session continuation                   |
 | **Read Section**      | Read the contents of one specific memory section                                   |
-| **Maintain Section**  | Read or replace one existing section with a token-guarded maintenance workflow     |
+| **Maintain Section**  | Curate one existing section with a token-guarded full-replace maintenance workflow |
 | **Store**             | Save memory into any named section, including custom sections created on first use |
 | **Search**            | Search individual memory entries across section names, tags, and text              |
 
@@ -261,12 +261,15 @@ Example `search(query)` response shape:
 
 All write tools support optional `tags` and `importance`, including `store(section, text, tags?, importance?)` and the built-in section writers.
 
-`maintain_section` is the only maintenance tool. It works on exactly one existing section at a time:
+`maintain_section` is the only maintenance tool. It is a deliberate cleanup and consolidation workflow for exactly one existing section at a time, not a deletion tool, append API, or partial patch API:
 
 - `mode = "read"` returns the canonical section name, raw storage-shaped `entries`, and a `maintenanceToken`
-- `mode = "write"` requires the matching token and replaces that section with the provided raw `entries`
+- `mode = "write"` requires the matching token and fully replaces that section with the provided curated raw `entries`
 - maintenance reads fail for unknown sections and do not issue tokens
-- maintenance writes do not create sections, do not run retention, and fail when the replacement list exceeds section capacity
+- maintenance writes do not create sections, require at least one entry, require valid non-empty `text` and valid `timestamp` on every entry, reject unsupported `importance`, and may normalize dirty tags
+- timestamps remain semantically meaningful during consolidation; callers intentionally choose the timestamps they write back
+- maintenance write failures are returned as structured `failure` payloads with categories such as `validation_failed`, `maintenance_token_missing`, `maintenance_token_invalid`, `maintenance_token_stale`, and `section_not_found`
+- after any successful maintenance write, including a no-op rewrite, every previously issued token for that section becomes stale and clients must `read` again before another maintenance round
 
 
 ## System Prompt

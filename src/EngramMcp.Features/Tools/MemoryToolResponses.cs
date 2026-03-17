@@ -68,12 +68,18 @@ public sealed record SearchResponse
 public sealed record MaintainSectionResponse
 {
     [JsonPropertyName("section")]
-    public required string Section { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Section { get; init; }
 
     [JsonPropertyName("entries")]
-    public required IReadOnlyList<MaintenanceMemoryEntry> Entries { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public IReadOnlyList<MaintenanceMemoryEntry>? Entries { get; init; }
 
     [JsonPropertyName("maintenanceToken")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? MaintenanceToken { get; init; }
+
+    [JsonPropertyName("failure")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public MaintenanceSectionFailure? Failure { get; init; }
 }

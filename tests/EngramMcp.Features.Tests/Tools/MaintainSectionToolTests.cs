@@ -37,7 +37,7 @@ public sealed class MaintainSectionToolTests
 
         service.MaintenanceReadSection.Is(ShortTerm);
         result.Section.Is(ShortTerm);
-        result.Entries.Count.Is(1);
+        result.Entries!.Count.Is(1);
         result.Entries[0].Timestamp.Is("2026-03-11T12:00:00.0000000+00:00");
         result.Entries[0].Text.Is("short");
         result.Entries[0].Tags!.SequenceEqual(["ops"]).IsTrue();
@@ -83,9 +83,31 @@ public sealed class MaintainSectionToolTests
         service.MaintenanceWriteToken.Is("token-1");
         service.MaintenanceWriteEntries!.Count.Is(1);
         result.Section.Is("project-x");
-        result.Entries.Count.Is(1);
+        result.Entries!.Count.Is(1);
         result.Entries[0].Text.Is("custom");
         result.MaintenanceToken.Is(null);
+    }
+
+    [Fact]
+    public async Task MaintainSectionTool_WriteMode_ReturnsStructuredFailureFromService()
+    {
+        var service = new SpyMemoryService
+        {
+            MaintenanceWriteException = MaintenanceSectionWriteException.SectionNotFound("missing section")
+        };
+        var tool = new MaintainSectionTool(service);
+
+        var result = await tool.ExecuteAsync(
+            "write",
+            "project-x",
+            maintenanceToken: "token-1",
+            entries: [new MaintenanceMemoryEntry { Timestamp = "2026-03-11T12:00:00.0000000+00:00", Text = "custom" }],
+            cancellationToken: CancellationToken.None);
+
+        result.Failure!.Category.Is("section_not_found");
+        result.Failure.Message.Is("missing section");
+        result.Section.Is(null);
+        result.Entries.Is(null);
     }
 
     [Fact]
@@ -113,31 +135,37 @@ public sealed class MaintainSectionToolTests
     }
 
     [Fact]
-    public async Task MaintainSectionTool_WriteMode_ThrowsWhenMaintenanceTokenIsMissing()
+    public async Task MaintainSectionTool_WriteMode_ReturnsStructuredFailureWhenMaintenanceTokenIsMissing()
     {
         var tool = new MaintainSectionTool(new SpyMemoryService());
 
-        var exception = await Assert.ThrowsAsync<ArgumentException>(() => tool.ExecuteAsync(
+        var result = await tool.ExecuteAsync(
             "write",
             ShortTerm,
             entries: [],
-            cancellationToken: CancellationToken.None));
+            cancellationToken: CancellationToken.None);
 
-        exception.Message.Is("Maintenance token is required for write mode. (Parameter 'maintenanceToken')");
+        result.Section.Is(null);
+        result.Entries.Is(null);
+        result.Failure!.Category.Is("maintenance_token_missing");
+        result.Failure.Message.Is("Maintenance token is required for write mode. Read the section again before submitting a replacement.");
     }
 
     [Fact]
-    public async Task MaintainSectionTool_WriteMode_ThrowsWhenEntriesAreMissing()
+    public async Task MaintainSectionTool_WriteMode_ReturnsStructuredFailureWhenEntriesAreMissing()
     {
         var tool = new MaintainSectionTool(new SpyMemoryService());
 
-        var exception = await Assert.ThrowsAsync<ArgumentException>(() => tool.ExecuteAsync(
+        var result = await tool.ExecuteAsync(
             "write",
             ShortTerm,
             maintenanceToken: "token-1",
-            cancellationToken: CancellationToken.None));
+            cancellationToken: CancellationToken.None);
 
-        exception.Message.Is("Entries are required for write mode. (Parameter 'entries')");
+        result.Failure!.Category.Is("validation_failed");
+        var detail = result.Failure.Details!.Single();
+        detail.Field.Is("entries");
+        detail.Message.Is("Entries are required for write mode and must contain the complete curated replacement list.");
     }
 
     [Fact]
@@ -168,5 +196,38 @@ public sealed class MaintainSectionToolTests
         root.GetProperty("entries")[0].GetProperty("text").GetString().Is("short");
         root.GetProperty("entries")[0].TryGetProperty("tags", out _).IsFalse();
         root.GetProperty("entries")[0].TryGetProperty("importance", out _).IsFalse();
+        root.TryGetProperty("failure", out _).IsFalse();
+    }
+
+    [Fact]
+    public void MaintainSectionResponse_SerializesStructuredFailure()
+    {
+        var response = new MaintainSectionResponse
+        {
+            Failure = new MaintenanceSectionFailure
+            {
+                Category = "validation_failed",
+                Message = "invalid",
+                Details =
+                [
+                    new MaintenanceSectionFailureDetail
+                    {
+                        Field = "entries",
+                        Message = "at least one entry required"
+                    }
+                ]
+            }
+        };
+
+        var json = JsonSerializer.Serialize(response);
+        using var document = JsonDocument.Parse(json);
+        var root = document.RootElement;
+
+        root.TryGetProperty("section", out _).IsFalse();
+        root.TryGetProperty("entries", out _).IsFalse();
+        root.TryGetProperty("maintenanceToken", out _).IsFalse();
+        root.GetProperty("failure").GetProperty("category").GetString().Is("validation_failed");
+        root.GetProperty("failure").GetProperty("message").GetString().Is("invalid");
+        root.GetProperty("failure").GetProperty("details")[0].GetProperty("field").GetString().Is("entries");
     }
 }

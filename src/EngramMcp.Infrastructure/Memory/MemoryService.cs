@@ -10,6 +10,8 @@ public sealed class MemoryService(
     IMaintenanceTokenProvider maintenanceTokenProvider)
     : IMemoryService
 {
+    private const int MaxMemoryTextLength = 500;
+
     public MemoryService(IMemoryCatalog memoryCatalog, IMemoryStore memoryStore)
         : this(memoryCatalog, memoryStore, new InMemoryMaintenanceTokenProvider())
     {
@@ -107,11 +109,11 @@ public sealed class MemoryService(
         var normalizedSection = NormalizeSectionIdentifier(section);
 
         if (string.IsNullOrWhiteSpace(maintenanceToken))
-            throw new ArgumentException("Maintenance token must not be null, empty, or whitespace.", nameof(maintenanceToken));
+            throw MaintenanceSectionWriteException.MaintenanceTokenMissing("Maintenance token is required for write mode. Read the section again before submitting a replacement.");
 
         ArgumentNullException.ThrowIfNull(entries);
 
-        var replacementEntries = entries.Select(ToMemoryEntry).ToList();
+        var replacementEntries = ValidateAndConvertMaintenanceEntries(entries);
         string? resolvedSection = null;
         MaintenanceTokenReservation reservation = default;
         var hasReservation = false;
@@ -122,17 +124,28 @@ public sealed class MemoryService(
                 container =>
                 {
                     resolvedSection = TryResolveExistingSectionName(normalizedSection, container)
-                                      ?? throw new KeyNotFoundException($"Memory section '{normalizedSection}' was not found. Available sections: {GetAvailableSectionNames(container)}.");
+                                      ?? throw MaintenanceSectionWriteException.SectionNotFound($"Memory section '{normalizedSection}' was not found. Read an existing section before starting maintenance.");
 
-                    if (!maintenanceTokenProvider.TryReserveForSection(maintenanceToken, resolvedSection, out reservation))
-                        throw new ArgumentException($"Maintenance token is invalid for section '{resolvedSection}'.", nameof(maintenanceToken));
+                    var reservationStatus = maintenanceTokenProvider.TryReserveForSection(maintenanceToken, resolvedSection, out reservation);
+
+                    if (reservationStatus == MaintenanceTokenReservationStatus.Invalid)
+                        throw MaintenanceSectionWriteException.MaintenanceTokenInvalid($"Maintenance token is invalid for section '{resolvedSection}'. Read the section again and use the returned token.");
+
+                    if (reservationStatus == MaintenanceTokenReservationStatus.Stale)
+                        throw MaintenanceSectionWriteException.MaintenanceTokenStale($"Maintenance token is stale for section '{resolvedSection}'. Read the section again before any further maintenance.");
 
                     hasReservation = true;
 
                     var memory = memoryCatalog.GetByName(resolvedSection);
 
                     if (replacementEntries.Count > memory.Capacity)
-                        throw new InvalidOperationException($"Memory section '{resolvedSection}' exceeds capacity {memory.Capacity}.");
+                        throw MaintenanceSectionWriteException.ValidationFailed(
+                            $"Replacement entries exceed capacity {memory.Capacity} for section '{resolvedSection}'.",
+                            [new MaintenanceSectionFailureDetail
+                            {
+                                Field = "entries",
+                                Message = $"Provide between 1 and {memory.Capacity} entries for section '{resolvedSection}'."
+                            }]);
 
                     container.Memories[resolvedSection] = [.. replacementEntries];
                 },
@@ -194,22 +207,109 @@ public sealed class MemoryService(
 
     private static MemoryEntry ToMemoryEntry(MaintenanceMemoryEntry entry)
     {
-        ArgumentNullException.ThrowIfNull(entry);
-
-        if (!DateTime.TryParse(entry.Timestamp, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var timestamp))
-            throw new ArgumentException($"Maintenance entry timestamp '{entry.Timestamp}' is invalid.", nameof(entry));
-
         MemoryImportance? importance = null;
 
         if (entry.Importance is { } importanceValue)
         {
-            if (!importanceValue.TryParseSerializedValue(out var parsedImportance))
-                throw new ArgumentException($"Maintenance entry importance '{importanceValue}' is invalid.", nameof(entry));
-
+            importanceValue.TryParseSerializedValue(out var parsedImportance);
             importance = parsedImportance;
         }
 
+        DateTime.TryParse(entry.Timestamp, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var timestamp);
+
         return new MemoryEntry(timestamp, entry.Text, entry.Tags, importance);
+    }
+
+    private static List<MemoryEntry> ValidateAndConvertMaintenanceEntries(IReadOnlyList<MaintenanceMemoryEntry> entries)
+    {
+        if (entries.Count == 0)
+        {
+            throw MaintenanceSectionWriteException.ValidationFailed(
+                "Maintenance writes must include at least one entry. This tool is for curation, not clearing a section.",
+                [new MaintenanceSectionFailureDetail
+                {
+                    Field = "entries",
+                    Message = "Provide the complete curated replacement list with at least one entry."
+                }]);
+        }
+
+        var details = new List<MaintenanceSectionFailureDetail>();
+
+        for (var index = 0; index < entries.Count; index++)
+        {
+            var entry = entries[index];
+            var fieldPrefix = $"entries[{index}]";
+
+            if (entry is null)
+            {
+                details.Add(new MaintenanceSectionFailureDetail
+                {
+                    Field = fieldPrefix,
+                    Message = "Entry is required."
+                });
+                continue;
+            }
+
+            if (string.IsNullOrWhiteSpace(entry.Timestamp))
+            {
+                details.Add(new MaintenanceSectionFailureDetail
+                {
+                    Field = $"{fieldPrefix}.timestamp",
+                    Message = "Timestamp is required and must be a valid round-trip datetime string."
+                });
+            }
+            else if (!DateTime.TryParse(entry.Timestamp, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out _))
+            {
+                details.Add(new MaintenanceSectionFailureDetail
+                {
+                    Field = $"{fieldPrefix}.timestamp",
+                    Message = $"Timestamp '{entry.Timestamp}' is invalid."
+                });
+            }
+
+            if (string.IsNullOrWhiteSpace(entry.Text))
+            {
+                details.Add(new MaintenanceSectionFailureDetail
+                {
+                    Field = $"{fieldPrefix}.text",
+                    Message = "Text is required and must not be empty or whitespace."
+                });
+            }
+            else
+            {
+                if (entry.Text.Contains('\r') || entry.Text.Contains('\n'))
+                {
+                    details.Add(new MaintenanceSectionFailureDetail
+                    {
+                        Field = $"{fieldPrefix}.text",
+                        Message = "Text must be a single line without carriage returns or line feeds."
+                    });
+                }
+
+                if (entry.Text.Length > MaxMemoryTextLength)
+                {
+                    details.Add(new MaintenanceSectionFailureDetail
+                    {
+                        Field = $"{fieldPrefix}.text",
+                        Message = $"Text must be {MaxMemoryTextLength} characters or fewer."
+                    });
+                }
+            }
+
+            if (entry.Importance is { } importanceValue && !importanceValue.TryParseSerializedValue(out _))
+            {
+                details.Add(new MaintenanceSectionFailureDetail
+                {
+                    Field = $"{fieldPrefix}.importance",
+                    Message = $"Importance '{importanceValue}' is invalid. Supported values: low, normal, high."
+                });
+            }
+        }
+
+        if (details.Count > 0)
+            throw MaintenanceSectionWriteException.ValidationFailed("Maintenance write request is invalid.", details);
+
+        return entries.Select(ToMemoryEntry).ToList();
     }
 
     private string GetAvailableSectionNames(MemoryContainer container)
