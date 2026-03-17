@@ -1,43 +1,15 @@
 using EngramMcp.Core;
-using EngramMcp.Infrastructure.Memory;
 using Is.Assertions;
 using Xunit;
-using static EngramMcp.Core.BuiltInMemorySections;
 
-namespace EngramMcp.Features.Tests.Memory;
+namespace EngramMcp.Features.Tests.Core;
 
-public sealed class MemoryBehaviorTests
+public sealed class MemorySectionTests
 {
-    [Fact]
-    public void MemoryEntry_RejectsMultilineText()
-    {
-        var exception = Assert.Throws<ArgumentException>(() => new MemoryEntry(new DateTime(2026, 3, 11, 8, 0, 0), "first\r\nsecond"));
-
-        exception.Message.Is("Memory text must be a single line without carriage returns or line feeds. (Parameter 'text')");
-    }
-
-    [Fact]
-    public void MemoryEntry_RejectsOverlyLongText()
-    {
-        var tooLongText = new string('a', 581);
-
-        var exception = Assert.Throws<ArgumentException>(() => new MemoryEntry(new DateTime(2026, 3, 11, 8, 0, 0), tooLongText));
-
-        exception.Message.Is("Memory text must be 500 characters or fewer. (Parameter 'text')");
-    }
-
-    [Fact]
-    public void MemoryEntry_AcceptsValidSingleLineText()
-    {
-        var entry = new MemoryEntry(new DateTime(2026, 3, 11, 8, 0, 0), "valid memory");
-
-        entry.Text.Is("valid memory");
-    }
-
     [Fact]
     public void Store_AppendsEntry_AndEvictsOldestWithinSameImportanceWhenCapacityIsExceeded()
     {
-        var section = new Core.MemorySection("shortTerm", 2);
+        var section = new MemorySection("shortTerm", 2);
         var container = new MemoryContainer
         {
             Memories = new Dictionary<string, List<MemoryEntry>>(StringComparer.Ordinal)
@@ -61,7 +33,7 @@ public sealed class MemoryBehaviorTests
     [Fact]
     public void Store_EvictsLowestImportanceBeforeOlderHigherImportance()
     {
-        var section = new Core.MemorySection("shortTerm", 2);
+        var section = new MemorySection("shortTerm", 2);
         var container = new MemoryContainer
         {
             Memories = new Dictionary<string, List<MemoryEntry>>(StringComparer.Ordinal)
@@ -84,26 +56,12 @@ public sealed class MemoryBehaviorTests
     [Fact]
     public void Read_CreatesMissingSection_AndReturnsEmptyList()
     {
-        var section = new Core.MemorySection("mediumTerm", 3);
+        var section = new MemorySection("mediumTerm", 3);
         var container = new MemoryContainer();
 
         var entries = section.Read(container);
 
         entries.Count.Is(0);
         container.Memories.ContainsKey("mediumTerm").IsTrue();
-    }
-
-    [Theory]
-    [InlineData(MemorySize.Small, 5)]
-    [InlineData(MemorySize.Normal, 10)]
-    [InlineData(MemorySize.Big, 20)]
-    public void CodeMemoryCatalog_UsesConfiguredBaseCapacity(MemorySize size, int baseCapacity)
-    {
-        var catalog = new CodeMemoryCatalog(size);
-
-        catalog.GetByName(ShortTerm).Capacity.Is(baseCapacity);
-        catalog.GetByName(MediumTerm).Capacity.Is(baseCapacity * 2);
-        catalog.GetByName(LongTerm).Capacity.Is(baseCapacity * 4);
-        catalog.GetByName("project-x").Capacity.Is(baseCapacity * 4);
     }
 }

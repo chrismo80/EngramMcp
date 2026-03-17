@@ -5,7 +5,7 @@ using System.Text.Json;
 using Xunit;
 using static EngramMcp.Core.BuiltInMemorySections;
 
-namespace EngramMcp.Features.Tests.Memory;
+namespace EngramMcp.Features.Tests.Infrastructure.Memory;
 
 public sealed class JsonMemoryStoreTests : IDisposable
 {

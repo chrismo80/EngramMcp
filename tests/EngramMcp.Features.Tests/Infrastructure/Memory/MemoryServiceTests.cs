@@ -1,11 +1,11 @@
 using EngramMcp.Core;
-using EngramMcp.Core.Abstractions;
 using EngramMcp.Infrastructure.Memory;
+using EngramMcp.Features.Tests.TestDoubles;
 using Is.Assertions;
 using Xunit;
 using static EngramMcp.Core.BuiltInMemorySections;
 
-namespace EngramMcp.Features.Tests.Memory;
+namespace EngramMcp.Features.Tests.Infrastructure.Memory;
 
 public sealed class MemoryServiceTests
 {
@@ -920,84 +920,4 @@ public sealed class MemoryServiceTests
     }
 
     private sealed record MaintenanceWriteAttempt(bool Succeeded, string? StoredText, Exception? Exception);
-
-    private sealed class FaultInjectingInMemoryStore(MemoryContainer container) : IMemoryStore
-    {
-        public MemoryContainer Container { get; private set; } = CloneContainer(container);
-
-        public bool FailAfterUpdate { get; set; }
-
-        public Task EnsureInitializedAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
-
-        public Task UpdateAsync(Action<MemoryContainer> update, CancellationToken cancellationToken = default)
-        {
-            ArgumentNullException.ThrowIfNull(update);
-
-            var container = CloneContainer(Container);
-            update(container);
-
-            if (FailAfterUpdate)
-                throw new InvalidOperationException("Simulated save failure.");
-
-            Container = container;
-            return Task.CompletedTask;
-        }
-
-        public Task<MemoryContainer> LoadAsync(CancellationToken cancellationToken = default)
-        {
-            return Task.FromResult(CloneContainer(Container));
-        }
-
-        private static MemoryContainer CloneContainer(MemoryContainer container)
-        {
-            return new MemoryContainer
-            {
-                Memories = container.Memories.ToDictionary(
-                    pair => pair.Key,
-                    pair => pair.Value.Select(entry => new MemoryEntry(entry.Timestamp, entry.Text, entry.Tags, entry.Importance)).ToList(),
-                    StringComparer.Ordinal),
-                CustomSections = [.. container.CustomSections.Select(summary => new MemorySectionSummary(summary.Name, summary.EntryCount))]
-            };
-        }
-    }
-
-    private sealed class InMemoryStore(MemoryContainer container) : IMemoryStore
-    {
-        public MemoryContainer Container { get; private set; } = container;
-
-        public Task EnsureInitializedAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
-
-        public Task UpdateAsync(Action<MemoryContainer> update, CancellationToken cancellationToken = default)
-        {
-            ArgumentNullException.ThrowIfNull(update);
-
-            var container = Clone(Container);
-            update(container);
-            Container = container;
-            return Task.CompletedTask;
-        }
-
-        public Task<MemoryContainer> LoadAsync(CancellationToken cancellationToken = default)
-        {
-            return Task.FromResult(Clone(Container));
-        }
-
-        public Task SaveAsync(MemoryContainer container, CancellationToken cancellationToken = default)
-        {
-            Container = Clone(container);
-            return Task.CompletedTask;
-        }
-
-        private static MemoryContainer Clone(MemoryContainer container)
-        {
-            return new MemoryContainer
-            {
-                Memories = container.Memories.ToDictionary(
-                    pair => pair.Key,
-                    pair => pair.Value.Select(entry => new MemoryEntry(entry.Timestamp, entry.Text, entry.Tags, entry.Importance)).ToList(),
-                    StringComparer.Ordinal),
-                CustomSections = [.. container.CustomSections.Select(summary => new MemorySectionSummary(summary.Name, summary.EntryCount))]
-            };
-        }
-    }
 }
