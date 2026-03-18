@@ -9,7 +9,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="AssertWithIs" Version="1.10.1" />
+    <PackageReference Include="AssertWithIs" Version="1.10.3" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.3" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.0.0" />
     <PackageReference Include="xunit" Version="2.9.3" />
@@ -23,6 +23,12 @@
     <ProjectReference Include="..\..\src\EngramMcp.Host\EngramMcp.Host.csproj" />
     <ProjectReference Include="..\..\src\EngramMcp.Infrastructure\EngramMcp.Infrastructure.csproj" />
     <ProjectReference Include="..\..\src\EngramMcp.Features\EngramMcp.Features.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Update="..\..\..\..\..\..\nuget\packages\assertwithis\1.10.3\contentFiles\any\any\is.configuration.json">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
   </ItemGroup>
 
 </Project>
