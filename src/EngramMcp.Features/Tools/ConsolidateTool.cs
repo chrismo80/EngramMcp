@@ -16,7 +16,7 @@ public sealed class ConsolidateTool(IMemoryService memoryService) : Tool
         string section,
         [Description("The consolidation token returned by read. Required for write mode, valid only for that same section, and stale after any successful write; after a successful write, call read again before the next consolidation.")]
         string? consolidationToken = null,
-        [Description("For write mode, the complete consolidated replacement entry list for that same section. Write fully replaces the section, requires at least one entry, requires valid non-empty text and valid timestamps on every entry, rejects unsupported importance values, and may normalize tags.")]
+        [Description("For write mode, the complete consolidated replacement entry list for that same section. Write fully replaces the section, requires at least one entry, requires valid non-empty text and valid timestamps on every entry, and rejects unsupported importance values.")]
         IReadOnlyList<MaintenanceMemoryEntry>? entries = null,
         CancellationToken cancellationToken = default)
     {

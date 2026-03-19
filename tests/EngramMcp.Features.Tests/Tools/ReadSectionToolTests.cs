@@ -18,7 +18,7 @@ public sealed class ReadSectionToolTests
             {
                 Memories = new Dictionary<string, List<MemoryEntry>>(StringComparer.Ordinal)
                 {
-                    [ShortTerm] = [new MemoryEntry(new DateTime(2026, 3, 11, 12, 0, 0), "short", ["ops", "todo"])]
+                    [ShortTerm] = [new MemoryEntry(new DateTime(2026, 3, 11, 12, 0, 0), "short")]
                 }
             }
         };
@@ -31,7 +31,6 @@ public sealed class ReadSectionToolTests
         response.Memories.Keys.ToArray().SequenceEqual([ShortTerm]).IsTrue();
         response.Memories[ShortTerm].Count.Is(1);
         response.Memories[ShortTerm][0].Text.Is("short");
-        response.Memories[ShortTerm][0].Tags!.SequenceEqual(["ops", "todo"]).IsTrue();
         response.Memories[ShortTerm][0].Importance.Is(null);
     }
 
@@ -56,7 +55,6 @@ public sealed class ReadSectionToolTests
         service.ReadSection.Is("project-x");
         response.Memories.Keys.ToArray().SequenceEqual(["project-x"]).IsTrue();
         response.Memories["project-x"][0].Text.Is("custom");
-        response.Memories["project-x"][0].Tags.Is(null);
         response.Memories["project-x"][0].Importance.Is(null);
     }
 

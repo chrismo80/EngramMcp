@@ -87,7 +87,6 @@ It optimizes for:
 | **Read Section**      | Read the contents of one specific memory section                                   |
 | **Consolidate**       | Clean up one existing section by rewriting it as a clearer, consolidated whole      |
 | **Store**             | Save memory into any named section, including custom sections created on first use |
-| **Search**            | Search individual memory entries across section names, tags, and text              |
 
 ## Memory Model
 
@@ -99,7 +98,7 @@ EngramMcp uses three built-in memory sections with capacities derived from the s
 | `normal` | 40 | 20 | 10 | 40 |
 | `big` | 80 | 40 | 20 | 80 |
 
-Agents can create custom sections through `store(section, text, tags?, importance?)`. Custom sections are created on first write and use the same capacity as `long-term` for the active size profile.
+Agents can create custom sections through `store(section, text, importance?)`. Custom sections are created on first write and use the same capacity as `long-term` for the active size profile.
 
 Built-in sections appear first in `recall`. Custom sections are listed afterward with their names and memory counts, but their contents are not included in the default recall output.
 
@@ -109,7 +108,6 @@ Each stored entry contains:
 
 - `timestamp` - local write timestamp
 - `text` - a required single-line memory text with a maximum length of 500 characters
-- `tags` - optional normalized tags used for later search and filtering
 - `importance` - optional importance level: `low`, `normal`, or `high`; unknown values currently fall back to `normal`
 
 Example file shape:
@@ -120,7 +118,6 @@ Example file shape:
     {
       "timestamp": "2026-03-10T10:15:30.0000000+01:00",
       "text": "Agent K is my self-identity: not a chatbot, but a gentle coding-buddy",
-      "tags": ["identity", "preference"],
       "importance": "high"
     },
     {
@@ -131,8 +128,7 @@ Example file shape:
   "medium-term": [
     {
       "timestamp": "2026-03-12T10:11:30.0000000+01:00",
-      "text": "Always use 'AssertWithIs' package for unit tests.",
-      "tags": ["testing", "dotnet"]
+      "text": "Always use 'AssertWithIs' package for unit tests."
     }
   ],
   "short-term": [
@@ -149,7 +145,6 @@ Example file shape:
     {
       "timestamp": "2026-03-12T10:18:30.0000000+01:00",
       "text": "The MCP workspace drift fix was implemented.",
-      "tags": ["roslyn", "workspace"],
       "importance": "high"
     }
   ]
@@ -160,14 +155,10 @@ Example file shape:
 
 - `recall` is the curated overview for the built-in sections plus custom-section discovery
 - `read_section(section)` reads one exact section when you already know its name; section lookup is case-insensitive and trims surrounding whitespace
-- `search(query)` splits the query on whitespace and matches each term case-insensitively as a substring against section names, tags, and entry text
-
-`search` returns individual matching entries when at least one query term matches. Results are ranked by the number of distinct query terms matched, then sorted by `importance` descending and `timestamp` descending.
 
 Retrieval tools return structured JSON responses. These responses expose only the fields that belong to the retrieval contract:
 
-- timestamps are never included in `recall`, `read_section`, or `search`
-- `tags` are included only when present
+- timestamps are never included in `recall` or `read_section`
 - `importance` is included only for `high`, serialized as `"high"`
 - `recall` always includes the built-in sections in the same order, even when empty
 - `recall.customSections` appears only when there are custom sections to list
@@ -180,7 +171,6 @@ Example `recall` response shape:
     "long-term": [
       {
         "memory": "Agent K is my self-identity: not a chatbot, but a gentle coding-buddy",
-        "tags": ["identity", "preference"],
         "importance": "high"
       }
     ],
@@ -204,7 +194,6 @@ Example `read_section(section)` success response shape:
     "project-x": [
       {
         "memory": "The MCP workspace drift fix was implemented.",
-        "tags": ["roslyn", "workspace"],
         "importance": "high"
       }
     ]
@@ -224,22 +213,7 @@ Example `read_section(section)` empty response shape:
 }
 ```
 
-Example `search(query)` response shape:
-
-```json
-{
-  "results": [
-    {
-      "memory": "The MCP workspace drift fix was implemented.",
-      "section": "project-x",
-      "tags": ["roslyn", "workspace"],
-      "importance": "high"
-    }
-  ]
-}
-```
-
-All write tools support optional `tags` and `importance`, including `store(section, text, tags?, importance?)` and the built-in section writers.
+All write tools support optional `importance`, including `store(section, text, importance?)` and the built-in section writers.
 
 `consolidate` is for memory cleanup on exactly one existing section at a time. Think of it like memory consolidation during sleep: you pull a section out, sort and strengthen what matters, merge duplicates, reorganize scattered details, and write back a cleaner whole.
 
@@ -261,7 +235,6 @@ Prefer using existing memory over asking the user to repeat information.
 Check memory before answering questions about the user, preferences, prior work, or ongoing tasks.
 
 - memory_recall: Call at the start of each session.
-- memory_search: Use for loose keyword-based memory retrieval; short focused queries work best.
 - memory_read_section: Use for retrieving the full contents of a section.
 
 ### Storage

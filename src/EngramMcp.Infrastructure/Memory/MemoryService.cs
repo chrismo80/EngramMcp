@@ -20,7 +20,6 @@ public sealed class MemoryService(
     public Task StoreAsync(
         string section,
         string text,
-        IReadOnlyList<string>? tags = null,
         MemoryImportance? importance = null,
         CancellationToken cancellationToken = default)
     {
@@ -31,7 +30,7 @@ public sealed class MemoryService(
             {
                 var resolvedSection = ResolveSectionName(normalizedSection, container);
                 var memory = memoryCatalog.GetByName(resolvedSection);
-                memory.Store(container, new MemoryEntry(CreateTimestamp(), text, tags, importance));
+                memory.Store(container, new MemoryEntry(CreateTimestamp(), text, importance));
             },
             cancellationToken);
     }
@@ -79,25 +78,6 @@ public sealed class MemoryService(
             Memories = recalled,
             CustomSections = GetCustomSectionSummaries(container)
         };
-    }
-
-    public async Task<IReadOnlyList<MemorySearchResult>> SearchAsync(string query, CancellationToken cancellationToken = default)
-    {
-        if (string.IsNullOrWhiteSpace(query))
-            throw new ArgumentException("Search query must not be null, empty, or whitespace.", nameof(query));
-
-        var queryTokens = TokenizeQuery(query);
-        var container = await memoryStore.LoadAsync(cancellationToken).ConfigureAwait(false);
-
-        return container.Memories
-            .SelectMany(section => section.Value.Select(entry => new MemorySearchResult(section.Key, entry)))
-            .Select(result => new { Result = result, MatchedTokenCount = CountMatchedTokens(result, queryTokens) })
-            .Where(result => result.MatchedTokenCount > 0)
-            .OrderByDescending(result => result.MatchedTokenCount)
-            .ThenByDescending(result => result.Result.Entry.Importance)
-            .ThenByDescending(result => result.Result.Entry.Timestamp)
-            .Select(result => result.Result)
-            .ToList();
     }
 
     public async Task<MaintenanceSectionWriteResult> WriteForMaintenanceAsync(
@@ -179,28 +159,12 @@ public sealed class MemoryService(
         };
     }
 
-    private static HashSet<string> TokenizeQuery(string query)
-    {
-        return query
-            .Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
-    }
-
-    private static int CountMatchedTokens(MemorySearchResult result, IEnumerable<string> queryTokens)
-    {
-        return queryTokens.Count(token =>
-            result.Section.Contains(token, StringComparison.OrdinalIgnoreCase)
-            || result.Entry.Text.Contains(token, StringComparison.OrdinalIgnoreCase)
-            || result.Entry.Tags.Any(tag => tag.Contains(token, StringComparison.OrdinalIgnoreCase)));
-    }
-
     private static MaintenanceMemoryEntry ToMaintenanceEntry(MemoryEntry entry)
     {
         return new MaintenanceMemoryEntry
         {
             Timestamp = entry.Timestamp.ToString("O", CultureInfo.InvariantCulture),
             Text = entry.Text,
-            Tags = entry.Tags.Count == 0 ? null : entry.Tags,
             Importance = entry.Importance == MemoryImportance.Normal ? null : entry.Importance.ToSerializedValue()
         };
     }
@@ -217,7 +181,7 @@ public sealed class MemoryService(
 
         DateTime.TryParse(entry.Timestamp, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var timestamp);
 
-        return new MemoryEntry(timestamp, entry.Text, entry.Tags, importance);
+        return new MemoryEntry(timestamp, entry.Text, importance);
     }
 
     private static List<MemoryEntry> ValidateAndConvertMaintenanceEntries(IReadOnlyList<MaintenanceMemoryEntry> entries)

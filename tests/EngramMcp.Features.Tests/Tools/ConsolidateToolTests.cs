@@ -24,7 +24,6 @@ public sealed class ConsolidateToolTests
                     {
                         Timestamp = "2026-03-11T12:00:00.0000000+00:00",
                         Text = "short",
-                        Tags = ["ops"],
                         Importance = "high"
                     }
                 ],
@@ -40,7 +39,6 @@ public sealed class ConsolidateToolTests
         result.Entries!.Count.Is(1);
         result.Entries[0].Timestamp.Is("2026-03-11T12:00:00.0000000+00:00");
         result.Entries[0].Text.Is("short");
-        result.Entries[0].Tags!.SequenceEqual(["ops"]).IsTrue();
         result.Entries[0].Importance.Is("high");
         result.ConsolidationToken.Is("token-1");
     }

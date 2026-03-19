@@ -10,13 +10,9 @@ internal sealed class SpyMemoryService : IMemoryService
 
     public string? StoredText { get; private set; }
 
-    public IReadOnlyList<string>? StoredTags { get; private set; }
-
     public MemoryImportance? StoredImportance { get; private set; }
 
     public string? ReadSection { get; private set; }
-
-    public string? SearchQuery { get; private set; }
 
     public string? MaintenanceReadSection { get; private set; }
 
@@ -43,11 +39,7 @@ internal sealed class SpyMemoryService : IMemoryService
         Entries = []
     };
 
-    public IReadOnlyList<MemorySearchResult> SearchResult { get; init; } = [];
-
     public Exception? ReadException { get; init; }
-
-    public Exception? SearchException { get; init; }
 
     public Exception? MaintenanceReadException { get; init; }
 
@@ -56,13 +48,11 @@ internal sealed class SpyMemoryService : IMemoryService
     public Task StoreAsync(
         string section,
         string text,
-        IReadOnlyList<string>? tags = null,
         MemoryImportance? importance = null,
         CancellationToken cancellationToken = default)
     {
         StoredName = section;
         StoredText = text;
-        StoredTags = tags;
         StoredImportance = importance;
         return Task.CompletedTask;
     }
@@ -88,15 +78,6 @@ internal sealed class SpyMemoryService : IMemoryService
         return MaintenanceReadException is null
             ? Task.FromResult(MaintenanceReadResult)
             : Task.FromException<MaintenanceSectionReadResult>(MaintenanceReadException);
-    }
-
-    public Task<IReadOnlyList<MemorySearchResult>> SearchAsync(string query, CancellationToken cancellationToken = default)
-    {
-        SearchQuery = query;
-
-        return SearchException is null
-            ? Task.FromResult(SearchResult)
-            : Task.FromException<IReadOnlyList<MemorySearchResult>>(SearchException);
     }
 
     public Task<MaintenanceSectionWriteResult> WriteForMaintenanceAsync(

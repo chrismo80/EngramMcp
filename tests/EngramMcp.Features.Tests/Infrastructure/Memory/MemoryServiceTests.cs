@@ -75,17 +75,6 @@ public sealed class MemoryServiceTests
     }
 
     [Fact]
-    public async Task StoreAsync_PersistsNormalizedTags()
-    {
-        var memoryStore = new InMemoryStore(CreateContainer());
-        var service = new MemoryService(new CodeMemoryCatalog(MemorySize.Normal), memoryStore);
-
-        await service.StoreAsync(ShortTerm, "tagged", ["Docker", "ops", "docker", "   "]);
-
-        memoryStore.Container.Memories[ShortTerm][0].Tags.SequenceEqual(["docker", "ops"]).IsTrue();
-    }
-
-    [Fact]
     public async Task StoreAsync_PersistsExplicitImportance()
     {
         var memoryStore = new InMemoryStore(CreateContainer());
@@ -114,7 +103,6 @@ public sealed class MemoryServiceTests
         memoryStore.Container.Memories[ShortTerm].Count.Is(2);
         memoryStore.Container.Memories[ShortTerm][0].Text.Is("duplicate");
         memoryStore.Container.Memories[ShortTerm][1].Text.Is("duplicate");
-        memoryStore.Container.Memories[ShortTerm][0].Tags.Count.Is(0);
         memoryStore.Container.Memories[ShortTerm][0].Importance.Is(MemoryImportance.Normal);
         memoryStore.Container.Memories[MediumTerm].Count.Is(1);
     }
@@ -324,7 +312,7 @@ public sealed class MemoryServiceTests
     {
         var service = new MemoryService(new CodeMemoryCatalog(MemorySize.Normal), new InMemoryStore(CreateContainer(new Dictionary<string, List<MemoryEntry>>(StringComparer.Ordinal)
         {
-            [ShortTerm] = [new(new DateTime(2026, 3, 11, 10, 0, 0, DateTimeKind.Utc), "short", ["ops"], MemoryImportance.High)],
+            [ShortTerm] = [new(new DateTime(2026, 3, 11, 10, 0, 0, DateTimeKind.Utc), "short", MemoryImportance.High)],
             [MediumTerm] = [],
             [LongTerm] = []
         })));
@@ -335,7 +323,6 @@ public sealed class MemoryServiceTests
         result.Entries.Count.Is(1);
         result.Entries[0].Timestamp.Is("2026-03-11T10:00:00.0000000Z");
         result.Entries[0].Text.Is("short");
-        result.Entries[0].Tags!.SequenceEqual(["ops"]).IsTrue();
         result.Entries[0].Importance.Is("high");
         result.ConsolidationToken.Length.Is(22);
         result.ConsolidationToken.All(IsBase64UrlCharacter).IsTrue();
@@ -411,7 +398,6 @@ public sealed class MemoryServiceTests
                 {
                     Timestamp = "2026-03-12T08:30:00.0000000Z",
                     Text = "new short",
-                    Tags = ["ops"],
                     Importance = "high"
                 }
             ]);
@@ -429,11 +415,6 @@ public sealed class MemoryServiceTests
 
         var recall = await service.RecallAsync();
         recall.Memories[ShortTerm].Select(entry => entry.Text).ToArray().SequenceEqual(["new short"]).IsTrue();
-
-        var search = await service.SearchAsync("new ops");
-        search.Count.Is(1);
-        search[0].Section.Is(ShortTerm);
-        search[0].Entry.Text.Is("new short");
     }
 
     [Fact]
@@ -690,35 +671,6 @@ public sealed class MemoryServiceTests
     }
 
     [Fact]
-    public async Task WriteForMaintenanceAsync_NormalizesTagsOnSuccessfulWrite()
-    {
-        var memoryStore = new InMemoryStore(CreateContainer(new Dictionary<string, List<MemoryEntry>>(StringComparer.Ordinal)
-        {
-            [ShortTerm] = [new(new DateTime(2026, 3, 11, 9, 0, 0, DateTimeKind.Utc), "old short")],
-            [MediumTerm] = [],
-            [LongTerm] = []
-        }));
-        var service = new MemoryService(new CodeMemoryCatalog(MemorySize.Normal), memoryStore);
-        var read = await service.ReadForMaintenanceAsync(ShortTerm);
-
-        var result = await service.WriteForMaintenanceAsync(
-            ShortTerm,
-            read.ConsolidationToken,
-            [
-                new MaintenanceMemoryEntry
-                {
-                    Timestamp = "2026-03-12T08:30:00.0000000Z",
-                    Text = "normalized",
-                    Tags = ["Docker", "ops", "docker", "  ", null!]
-                }
-            ]);
-
-        result.Section.Is(ShortTerm);
-        result.Entries[0].Tags!.SequenceEqual(["docker", "ops"]).IsTrue();
-        memoryStore.Container.Memories[ShortTerm][0].Tags.SequenceEqual(["docker", "ops"]).IsTrue();
-    }
-
-    [Fact]
     public async Task WriteForMaintenanceAsync_SuccessfulNoOpWriteInvalidatesPriorTokens()
     {
         var service = new MemoryService(new CodeMemoryCatalog(MemorySize.Normal), new InMemoryStore(CreateContainer(new Dictionary<string, List<MemoryEntry>>(StringComparer.Ordinal)
@@ -875,199 +827,6 @@ public sealed class MemoryServiceTests
         recalled.Memories.Keys.ToArray().SequenceEqual([LongTerm, MediumTerm, ShortTerm]).IsTrue();
         recalled.Memories.ContainsKey("a-first").IsFalse();
         recalled.Memories.ContainsKey("z-last").IsFalse();
-    }
-
-    [Fact]
-    public async Task SearchAsync_MatchesSectionNameAcrossBuiltInAndCustomSections()
-    {
-        var service = new MemoryService(new CodeMemoryCatalog(MemorySize.Normal), new InMemoryStore(CreateContainer(new Dictionary<string, List<MemoryEntry>>(StringComparer.Ordinal)
-        {
-            [ShortTerm] =
-            [
-                new(new DateTime(2026, 3, 11, 10, 0, 0), "first short")
-            ],
-            [MediumTerm] = [],
-            [LongTerm] = [],
-            ["project-shortcuts"] =
-            [
-                new(new DateTime(2026, 3, 11, 11, 0, 0), "custom short")
-            ]
-        })));
-
-        var results = await service.SearchAsync("short");
-
-        results.Select(result => result.Section).ToArray().SequenceEqual(["project-shortcuts", ShortTerm]).IsTrue();
-    }
-
-    [Fact]
-    public async Task SearchAsync_MatchesTagsCaseInsensitively()
-    {
-        var service = new MemoryService(new CodeMemoryCatalog(MemorySize.Normal), new InMemoryStore(CreateContainer(new Dictionary<string, List<MemoryEntry>>(StringComparer.Ordinal)
-        {
-            [ShortTerm] =
-            [
-                new(new DateTime(2026, 3, 11, 10, 0, 0), "entry", ["Docker"])
-            ],
-            [MediumTerm] = [],
-            [LongTerm] = []
-        })));
-
-        var results = await service.SearchAsync("DOCK");
-
-        results.Count.Is(1);
-        results[0].Entry.Text.Is("entry");
-    }
-
-    [Fact]
-    public async Task SearchAsync_MatchesEntryTextCaseInsensitively()
-    {
-        var service = new MemoryService(new CodeMemoryCatalog(MemorySize.Normal), new InMemoryStore(CreateContainer(new Dictionary<string, List<MemoryEntry>>(StringComparer.Ordinal)
-        {
-            [ShortTerm] =
-            [
-                new(new DateTime(2026, 3, 11, 10, 0, 0), "Workspace drift is happening")
-            ],
-            [MediumTerm] = [],
-            [LongTerm] = []
-        })));
-
-        var results = await service.SearchAsync("workspace DRIFT");
-
-        results.Count.Is(1);
-        results[0].Section.Is(ShortTerm);
-    }
-
-    [Fact]
-    public async Task SearchAsync_MatchesAnyQueryTokenAcrossSectionsTextAndTags()
-    {
-        var service = new MemoryService(new CodeMemoryCatalog(MemorySize.Normal), new InMemoryStore(CreateContainer(new Dictionary<string, List<MemoryEntry>>(StringComparer.Ordinal)
-        {
-            [ShortTerm] =
-            [
-                new(new DateTime(2026, 3, 11, 9, 0, 0), "workspace planning")
-            ],
-            [MediumTerm] =
-            [
-                new(new DateTime(2026, 3, 11, 10, 0, 0), "general note", ["docker"])
-            ],
-            [LongTerm] = [],
-            ["project-ops"] =
-            [
-                new(new DateTime(2026, 3, 11, 11, 0, 0), "custom entry")
-            ]
-        })));
-
-        var results = await service.SearchAsync("docker workspace ops");
-
-        results.Select(result => result.Section).ToArray().SequenceEqual(["project-ops", MediumTerm, ShortTerm]).IsTrue();
-    }
-
-    [Theory]
-    [InlineData("")]
-    [InlineData("   ")]
-    public async Task SearchAsync_RejectsEmptyOrWhitespaceQuery(string query)
-    {
-        var service = new MemoryService(new CodeMemoryCatalog(MemorySize.Normal), new InMemoryStore(CreateContainer()));
-
-        var exception = await Assert.ThrowsAsync<ArgumentException>(() => service.SearchAsync(query));
-
-        exception.Message.Is("Search query must not be null, empty, or whitespace. (Parameter 'query')");
-    }
-
-    [Fact]
-    public async Task SearchAsync_SortsByImportanceDescendingThenTimestampDescending()
-    {
-        var service = new MemoryService(new CodeMemoryCatalog(MemorySize.Normal), new InMemoryStore(CreateContainer(new Dictionary<string, List<MemoryEntry>>(StringComparer.Ordinal)
-        {
-            [ShortTerm] =
-            [
-                new(new DateTime(2026, 3, 11, 8, 0, 0), "match", importance: MemoryImportance.High),
-                new(new DateTime(2026, 3, 11, 12, 0, 0), "match", importance: MemoryImportance.Normal),
-                new(new DateTime(2026, 3, 11, 10, 0, 0), "match", importance: MemoryImportance.High)
-            ],
-            [MediumTerm] = [],
-            [LongTerm] = []
-        })));
-
-        var results = await service.SearchAsync("match");
-
-        results.Select(result => result.Entry.Timestamp).ToArray().SequenceEqual(
-            [
-                new DateTime(2026, 3, 11, 10, 0, 0),
-                new DateTime(2026, 3, 11, 8, 0, 0),
-                new DateTime(2026, 3, 11, 12, 0, 0)
-            ]).IsTrue();
-    }
-
-    [Fact]
-    public async Task SearchAsync_RanksByDistinctMatchedTokenCountDescending()
-    {
-        var service = new MemoryService(new CodeMemoryCatalog(MemorySize.Normal), new InMemoryStore(CreateContainer(new Dictionary<string, List<MemoryEntry>>(StringComparer.Ordinal)
-        {
-            [ShortTerm] =
-            [
-                new(new DateTime(2026, 3, 11, 9, 0, 0), "docker workspace note", ["ops"]),
-                new(new DateTime(2026, 3, 11, 10, 0, 0), "docker note"),
-                new(new DateTime(2026, 3, 11, 11, 0, 0), "workspace note")
-            ],
-            [MediumTerm] = [],
-            [LongTerm] = []
-        })));
-
-        var results = await service.SearchAsync("docker workspace ops");
-
-        results.Select(result => result.Entry.Text).ToArray().SequenceEqual([
-            "docker workspace note",
-            "workspace note",
-            "docker note"
-        ]).IsTrue();
-    }
-
-    [Fact]
-    public async Task SearchAsync_DoesNotIncreaseScoreForDuplicateQueryTokens()
-    {
-        var service = new MemoryService(new CodeMemoryCatalog(MemorySize.Normal), new InMemoryStore(CreateContainer(new Dictionary<string, List<MemoryEntry>>(StringComparer.Ordinal)
-        {
-            [ShortTerm] =
-            [
-                new(new DateTime(2026, 3, 11, 9, 0, 0), "docker workspace note"),
-                new(new DateTime(2026, 3, 11, 10, 0, 0), "docker note")
-            ],
-            [MediumTerm] = [],
-            [LongTerm] = []
-        })));
-
-        var results = await service.SearchAsync("docker docker workspace");
-
-        results.Select(result => result.Entry.Text).ToArray().SequenceEqual([
-            "docker workspace note",
-            "docker note"
-        ]).IsTrue();
-    }
-
-    [Fact]
-    public async Task SearchAsync_UsesImportanceAndTimestampTieBreakersWhenTokenCountsMatch()
-    {
-        var service = new MemoryService(new CodeMemoryCatalog(MemorySize.Normal), new InMemoryStore(CreateContainer(new Dictionary<string, List<MemoryEntry>>(StringComparer.Ordinal)
-        {
-            [ShortTerm] =
-            [
-                new(new DateTime(2026, 3, 11, 8, 0, 0), "docker workspace", importance: MemoryImportance.High),
-                new(new DateTime(2026, 3, 11, 10, 0, 0), "docker workspace", importance: MemoryImportance.High),
-                new(new DateTime(2026, 3, 11, 12, 0, 0), "docker workspace", importance: MemoryImportance.Normal)
-            ],
-            [MediumTerm] = [],
-            [LongTerm] = []
-        })));
-
-        var results = await service.SearchAsync("docker workspace");
-
-        results.Select(result => result.Entry.Timestamp).ToArray().SequenceEqual(
-            [
-                new DateTime(2026, 3, 11, 10, 0, 0),
-                new DateTime(2026, 3, 11, 8, 0, 0),
-                new DateTime(2026, 3, 11, 12, 0, 0)
-            ]).IsTrue();
     }
 
     private static MemoryContainer CreateContainer(Dictionary<string, List<MemoryEntry>>? memories = null)

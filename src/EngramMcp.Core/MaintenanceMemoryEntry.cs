@@ -12,10 +12,6 @@ public sealed record MaintenanceMemoryEntry
     [JsonPropertyName("text")]
     public required string Text { get; init; }
 
-    [JsonPropertyName("tags")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public IReadOnlyList<string>? Tags { get; init; }
-
     [JsonPropertyName("importance")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? Importance { get; init; }
@@ -47,24 +43,6 @@ internal sealed class MaintenanceMemoryEntryJsonConverter : JsonConverter<Mainte
         if (textElement.ValueKind != JsonValueKind.String)
             throw new JsonException("Maintenance memory entry property 'text' must be a string.");
 
-        List<string>? tags = null;
-
-        if (root.TryGetProperty("tags", out var tagsElement))
-        {
-            if (tagsElement.ValueKind != JsonValueKind.Array)
-                throw new JsonException("Maintenance memory entry property 'tags' must be an array.");
-
-            tags = [];
-
-            foreach (var tagElement in tagsElement.EnumerateArray())
-            {
-                if (tagElement.ValueKind != JsonValueKind.String)
-                    throw new JsonException("Maintenance memory entry tags must be strings.");
-
-                tags.Add(tagElement.GetString()!);
-            }
-        }
-
         string? importance = null;
 
         if (root.TryGetProperty("importance", out var importanceElement))
@@ -79,7 +57,6 @@ internal sealed class MaintenanceMemoryEntryJsonConverter : JsonConverter<Mainte
         {
             Timestamp = timestamp!,
             Text = textElement.GetString()!,
-            Tags = tags,
             Importance = importance
         };
     }
@@ -89,17 +66,6 @@ internal sealed class MaintenanceMemoryEntryJsonConverter : JsonConverter<Mainte
         writer.WriteStartObject();
         writer.WriteString("timestamp", value.Timestamp);
         writer.WriteString("text", value.Text);
-
-        if (value.Tags is { Count: > 0 })
-        {
-            writer.WritePropertyName("tags");
-            writer.WriteStartArray();
-
-            foreach (var tag in value.Tags)
-                writer.WriteStringValue(tag);
-
-            writer.WriteEndArray();
-        }
 
         if (value.Importance is not null)
             writer.WriteString("importance", value.Importance);

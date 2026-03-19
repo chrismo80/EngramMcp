@@ -5,7 +5,6 @@ public interface IMemoryService
     Task StoreAsync(
         string section,
         string text,
-        IReadOnlyList<string>? tags = null,
         MemoryImportance? importance = null,
         CancellationToken cancellationToken = default);
 
@@ -14,8 +13,6 @@ public interface IMemoryService
     Task<MaintenanceSectionReadResult> ReadForMaintenanceAsync(string section, CancellationToken cancellationToken = default);
 
     Task<MemoryContainer> RecallAsync(CancellationToken cancellationToken = default);
-
-    Task<IReadOnlyList<MemorySearchResult>> SearchAsync(string query, CancellationToken cancellationToken = default);
 
     Task<MaintenanceSectionWriteResult> WriteForMaintenanceAsync(
         string section,

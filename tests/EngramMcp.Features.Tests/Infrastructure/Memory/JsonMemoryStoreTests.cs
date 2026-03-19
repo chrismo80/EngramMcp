@@ -88,8 +88,36 @@ public sealed class JsonMemoryStoreTests : IDisposable
 
         var entry = container.Memories[LongTerm][0];
         entry.Text.Is("hello");
-        entry.Tags.Count.Is(0);
         entry.Importance.Is(MemoryImportance.Normal);
+    }
+
+    [Fact]
+    public async Task LoadAsync_IgnoresLegacyTagsMetadata()
+    {
+        Directory.CreateDirectory(_rootPath);
+        var filePath = Path.Combine(_rootPath, "memory.json");
+        await File.WriteAllTextAsync(filePath, $$"""
+            {
+              "{{LongTerm}}": [
+                {
+                  "timestamp": "2026-03-11T15:04:05",
+                  "text": "hello",
+                  "tags": ["project-x", "research"],
+                  "importance": "high"
+                }
+              ],
+              "{{MediumTerm}}": [],
+              "{{ShortTerm}}": []
+            }
+            """);
+
+        var store = CreateStore(filePath);
+
+        var container = await store.LoadAsync();
+
+        var entry = container.Memories[LongTerm][0];
+        entry.Text.Is("hello");
+        entry.Importance.Is(MemoryImportance.High);
     }
 
     [Fact]
@@ -206,7 +234,7 @@ public sealed class JsonMemoryStoreTests : IDisposable
     }
 
     [Fact]
-    public async Task SaveAsync_RoundTripsMetadataUsingNormalizedTags()
+    public async Task SaveAsync_PersistsImportanceWithoutTags()
     {
         var filePath = Path.Combine(_rootPath, "memory.json");
         var store = CreateStore(filePath);
@@ -221,7 +249,6 @@ public sealed class JsonMemoryStoreTests : IDisposable
                     new(
                         new DateTime(2026, 3, 11, 15, 4, 5),
                         "hello",
-                        ["  Project-X  ", "project-x", "", "  ", "Research"],
                         MemoryImportance.High)
                 ],
                 [MediumTerm] = [],
@@ -235,11 +262,8 @@ public sealed class JsonMemoryStoreTests : IDisposable
         var json = await File.ReadAllTextAsync(filePath);
         var entry = loaded.Memories[ShortTerm][0];
 
-        entry.Tags.SequenceEqual(["project-x", "research"]).IsTrue();
         entry.Importance.Is(MemoryImportance.High);
-        json.Contains("\"tags\"", StringComparison.Ordinal).IsTrue();
-        json.Contains("\"project-x\"", StringComparison.Ordinal).IsTrue();
-        json.Contains("\"research\"", StringComparison.Ordinal).IsTrue();
+        json.Contains("\"tags\"", StringComparison.Ordinal).IsFalse();
         json.Contains("\"importance\": \"high\"", StringComparison.Ordinal).IsTrue();
     }
 

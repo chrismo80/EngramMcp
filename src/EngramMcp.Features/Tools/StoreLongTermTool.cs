@@ -12,12 +12,10 @@ public sealed class StoreLongTermTool(IMemoryService memoryService) : Tool
     public Task ExecuteAsync(
         [Description("The memory to store.")]
         string text,
-        [Description("Optional normalized tags to store with this memory entry.")]
-        IReadOnlyList<string>? tags = null,
         [Description("Optional relative priority within the selected section: low, normal, high. Do not use high just because the memory is worth storing. Defaults to normal.")]
         string? importance = null,
         CancellationToken cancellationToken = default)
     {
-        return memoryService.StoreAsync(BuiltInMemorySections.LongTerm, text, tags, importance.Parse(), cancellationToken);
+        return memoryService.StoreAsync(BuiltInMemorySections.LongTerm, text, importance.Parse(), cancellationToken);
     }
 }

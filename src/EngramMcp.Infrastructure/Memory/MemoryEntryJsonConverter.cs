@@ -26,24 +26,6 @@ internal sealed class MemoryEntryJsonConverter : JsonConverter<MemoryEntry>
         if (textElement.ValueKind != JsonValueKind.String)
             throw new JsonException("Memory entry property 'text' must be a string.");
 
-        List<string>? tags = null;
-
-        if (root.TryGetProperty("tags", out var tagsElement))
-        {
-            if (tagsElement.ValueKind != JsonValueKind.Array)
-                throw new JsonException("Memory entry property 'tags' must be an array.");
-
-            tags = [];
-
-            foreach (var tagElement in tagsElement.EnumerateArray())
-            {
-                if (tagElement.ValueKind != JsonValueKind.String)
-                    throw new JsonException("Memory entry tags must be strings.");
-
-                tags.Add(tagElement.GetString()!);
-            }
-        }
-
         MemoryImportance? importance = null;
 
         if (root.TryGetProperty("importance", out var importanceElement))
@@ -54,7 +36,7 @@ internal sealed class MemoryEntryJsonConverter : JsonConverter<MemoryEntry>
             importance = importanceElement.GetString().Parse();
         }
 
-        return new MemoryEntry(timestampElement.GetDateTime(), textElement.GetString()!, tags, importance);
+        return new MemoryEntry(timestampElement.GetDateTime(), textElement.GetString()!, importance);
     }
 
     public override void Write(Utf8JsonWriter writer, MemoryEntry value, JsonSerializerOptions options)
@@ -62,17 +44,6 @@ internal sealed class MemoryEntryJsonConverter : JsonConverter<MemoryEntry>
         writer.WriteStartObject();
         writer.WriteString("timestamp", value.Timestamp);
         writer.WriteString("text", value.Text);
-
-        if (value.Tags.Count > 0)
-        {
-            writer.WritePropertyName("tags");
-            writer.WriteStartArray();
-
-            foreach (var tag in value.Tags)
-                writer.WriteStringValue(tag);
-
-            writer.WriteEndArray();
-        }
 
         if (value.Importance != MemoryImportance.Normal)
             writer.WriteString("importance", value.Importance.ToSerializedValue());

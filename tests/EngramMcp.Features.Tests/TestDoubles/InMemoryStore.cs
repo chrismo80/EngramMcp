@@ -36,7 +36,7 @@ internal sealed class InMemoryStore(MemoryContainer container) : IMemoryStore
         {
             Memories = container.Memories.ToDictionary(
                 pair => pair.Key,
-                pair => pair.Value.Select(entry => new MemoryEntry(entry.Timestamp, entry.Text, entry.Tags, entry.Importance)).ToList(),
+                pair => pair.Value.Select(entry => new MemoryEntry(entry.Timestamp, entry.Text, entry.Importance)).ToList(),
                 StringComparer.Ordinal),
             CustomSections = [.. container.CustomSections.Select(summary => new MemorySectionSummary(summary.Name, summary.EntryCount))]
         };

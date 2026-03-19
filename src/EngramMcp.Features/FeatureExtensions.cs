@@ -61,17 +61,6 @@ public static class FeatureExtensions
         }
     }
 
-    extension(IReadOnlyList<MemorySearchResult> results)
-    {
-        internal SearchResponse ToSearchResponse()
-        {
-            return new SearchResponse
-            {
-                Results = [.. results.Select(result => result.ToSearchItemResponse())]
-            };
-        }
-    }
-
     private static IReadOnlyDictionary<string, IReadOnlyList<MemoryVisibleItemResponse>> ToVisibleMemories(
         this IReadOnlyDictionary<string, List<MemoryEntry>> memories)
     {
@@ -88,19 +77,7 @@ public static class FeatureExtensions
         return new MemoryVisibleItemResponse
         {
             Text = memory.Text,
-            Tags = memory.Tags.Count == 0 ? null : memory.Tags,
             Importance = memory.Importance.ToVisibleImportance()
-        };
-    }
-
-    private static SearchItemResponse ToSearchItemResponse(this MemorySearchResult result)
-    {
-        return new SearchItemResponse
-        {
-            Text = result.Entry.Text,
-            Section = result.Section,
-            Tags = result.Entry.Tags.Count == 0 ? null : result.Entry.Tags,
-            Importance = result.Entry.Importance.ToVisibleImportance()
         };
     }
 

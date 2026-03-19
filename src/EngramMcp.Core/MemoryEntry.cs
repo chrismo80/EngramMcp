@@ -6,11 +6,10 @@ public sealed record MemoryEntry
 
     private string _text = null!;
 
-    public MemoryEntry(DateTime timestamp, string text, IEnumerable<string>? tags = null, MemoryImportance? importance = null)
+    public MemoryEntry(DateTime timestamp, string text, MemoryImportance? importance = null)
     {
         Timestamp = timestamp;
         Text = text;
-        Tags = NormalizeTags(tags);
         Importance = importance ?? MemoryImportance.Normal;
     }
 
@@ -21,8 +20,6 @@ public sealed record MemoryEntry
         get => _text;
         private init => _text = ValidateText(value);
     }
-
-    public IReadOnlyList<string> Tags { get; init; }
 
     public MemoryImportance Importance { get; init; }
 
@@ -38,27 +35,5 @@ public sealed record MemoryEntry
             throw new ArgumentException($"Memory text must be {MaxTextLength} characters or fewer.", nameof(text));
 
         return text;
-    }
-
-    private static IReadOnlyList<string> NormalizeTags(IEnumerable<string>? tags)
-    {
-        if (tags is null)
-            return [];
-
-        var normalizedTags = new List<string>();
-        var seenTags = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-        foreach (var tag in tags)
-        {
-            if (string.IsNullOrWhiteSpace(tag))
-                continue;
-
-            var normalizedTag = tag.Trim().ToLowerInvariant();
-
-            if (seenTags.Add(normalizedTag))
-                normalizedTags.Add(normalizedTag);
-        }
-
-        return normalizedTags.Count == 0 ? [] : normalizedTags.AsReadOnly();
     }
 }

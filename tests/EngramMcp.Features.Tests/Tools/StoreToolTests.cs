@@ -10,16 +10,15 @@ namespace EngramMcp.Features.Tests.Tools;
 public sealed class StoreToolTests
 {
     [Fact]
-    public async Task StoreTool_DelegatesToSharedServiceWithProvidedSectionAndTags()
+    public async Task StoreTool_DelegatesToSharedServiceWithProvidedSection()
     {
         var service = new SpyMemoryService();
         var tool = new StoreTool(service);
 
-        await tool.ExecuteAsync("project-x", "remember this", ["Docker", "ops", "docker", "   "], "low", CancellationToken.None);
+        await tool.ExecuteAsync("project-x", "remember this", "low", CancellationToken.None);
 
         service.StoredName.Is("project-x");
         service.StoredText.Is("remember this");
-        service.StoredTags!.SequenceEqual(["Docker", "ops", "docker", "   "]).IsTrue();
         service.StoredImportance.Is(MemoryImportance.Low);
     }
 

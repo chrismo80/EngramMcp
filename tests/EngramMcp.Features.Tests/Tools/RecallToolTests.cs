@@ -30,7 +30,6 @@ public sealed class RecallToolTests
         result.Memories.Keys.ToArray().SequenceEqual([LongTerm, MediumTerm, ShortTerm]).IsTrue();
         result.Memories[LongTerm].Count.Is(1);
         result.Memories[LongTerm][0].Text.Is("long");
-        result.Memories[LongTerm][0].Tags.Is(null);
         result.Memories[LongTerm][0].Importance.Is(null);
         result.Memories[MediumTerm].Count.Is(0);
         result.Memories[ShortTerm].Count.Is(1);
@@ -103,7 +102,7 @@ public sealed class RecallToolTests
                 {
                     [LongTerm] = [],
                     [MediumTerm] = [],
-                    [ShortTerm] = [new MemoryEntry(new DateTime(2026, 3, 11, 12, 0, 0), "short", ["ops"], MemoryImportance.High)]
+                    [ShortTerm] = [new MemoryEntry(new DateTime(2026, 3, 11, 12, 0, 0), "short", MemoryImportance.High)]
                 }
             }
         };
@@ -115,7 +114,6 @@ public sealed class RecallToolTests
         result.Memories[MediumTerm].Count.Is(0);
         result.Memories[ShortTerm].Count.Is(1);
         result.Memories[ShortTerm][0].Text.Is("short");
-        result.Memories[ShortTerm][0].Tags!.SequenceEqual(["ops"]).IsTrue();
         result.Memories[ShortTerm][0].Importance.Is("high");
     }
 }
