@@ -1,4 +1,4 @@
-using EngramMcp.Core;
+using EngramMcp.Tools.Memory;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 

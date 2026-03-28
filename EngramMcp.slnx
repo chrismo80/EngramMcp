@@ -1,11 +1,9 @@
 <Solution>
   <Folder Name="/src/">
     <Project Path="src/EngramMcp.Host/EngramMcp.Host.csproj" />
-    <Project Path="src/EngramMcp.Infrastructure/EngramMcp.Infrastructure.csproj" />
-    <Project Path="src/EngramMcp.Features/EngramMcp.Features.csproj" />
-    <Project Path="src/EngramMcp.Core/EngramMcp.Core.csproj" />
+    <Project Path="src/EngramMcp.Tools/EngramMcp.Tools.csproj" />
   </Folder>
   <Folder Name="/tests/">
-    <Project Path="tests/EngramMcp.Features.Tests/EngramMcp.Features.Tests.csproj" />
+    <Project Path="tests/EngramMcp.Tools.Tests/EngramMcp.Tools.Tests.csproj" />
   </Folder>
 </Solution>

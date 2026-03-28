@@ -1,4 +1,4 @@
-using EngramMcp.Core;
+using EngramMcp.Tools.Memory;
 
 namespace EngramMcp.Host;
 
