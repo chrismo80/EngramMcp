@@ -2,9 +2,9 @@ using EngramMcp.Tools.Extensions;
 using Is.Assertions;
 using Xunit;
 
-namespace EngramMcp.Tools.Tests;
+namespace EngramMcp.Tools.Tests.Extensions;
 
-public class ToolRegistrationTests
+public sealed class ServiceExtensionsTests
 {
     [Fact]
     public void GetTools_returns_migrated_tools()

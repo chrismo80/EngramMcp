@@ -1,7 +1,7 @@
 using EngramMcp.Tools.Maintenance;
 using EngramMcp.Tools.Memory;
 
-namespace EngramMcp.Tools.Tests.Tools;
+namespace EngramMcp.Tools.Tests.TestDoubles;
 
 internal sealed class ToolTestMemoryService : IMemoryService
 {
