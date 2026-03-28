@@ -20,6 +20,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\EngramMcp.Tools\EngramMcp.Tools.csproj" />
+    <ProjectReference Include="..\..\src\EngramMcp.Host\EngramMcp.Host.csproj" />
   </ItemGroup>
 
 </Project>

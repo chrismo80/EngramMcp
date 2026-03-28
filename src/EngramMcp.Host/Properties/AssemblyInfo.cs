@@ -1,3 +1,3 @@
 using System.Runtime.CompilerServices;
 
-[assembly: InternalsVisibleTo("EngramMcp.Features.Tests")]
+[assembly: InternalsVisibleTo("EngramMcp.Tools.Tests")]

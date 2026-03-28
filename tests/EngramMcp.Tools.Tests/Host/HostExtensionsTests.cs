@@ -1,15 +1,14 @@
-using EngramMcp.Core;
-using EngramMcp.Core.Abstractions;
+using System.Reflection;
 using EngramMcp.Host;
+using EngramMcp.Tools.Memory;
 using Is.Assertions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using ModelContextProtocol.Server;
-using System.Reflection;
 using Xunit;
-using static EngramMcp.Core.BuiltInMemorySections;
+using static EngramMcp.Tools.Memory.BuiltInMemorySections;
 
-namespace EngramMcp.Features.Tests.Host;
+namespace EngramMcp.Tools.Tests.Host;
 
 public sealed class HostExtensionsTests
 {

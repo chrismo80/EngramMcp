@@ -1,9 +1,9 @@
-using EngramMcp.Core;
 using EngramMcp.Host;
+using EngramMcp.Tools.Memory;
 using Is.Assertions;
 using Xunit;
 
-namespace EngramMcp.Features.Tests.Host;
+namespace EngramMcp.Tools.Tests.Host;
 
 public sealed class McpServerHostTests
 {
@@ -40,40 +40,50 @@ public sealed class McpServerHostTests
     [Fact]
     public void ParseOptions_ThrowsClearError_WhenFileValueIsMissing()
     {
-        var exception = Assert.Throws<ArgumentException>(() => McpServerHost.ParseOptions(["--file"], "/workspace"));
+        var exception = Record.Exception(() => McpServerHost.ParseOptions(["--file"], "/workspace"));
 
+        exception.IsNotNull();
+        exception.Is<ArgumentException>();
         exception.Message.Contains("Missing value for '--file'", StringComparison.Ordinal).IsTrue();
     }
 
     [Fact]
     public void ParseOptions_ThrowsClearError_WhenSizeValueIsMissing()
     {
-        var exception = Assert.Throws<ArgumentException>(() => McpServerHost.ParseOptions(["--size"], "/workspace"));
+        var exception = Record.Exception(() => McpServerHost.ParseOptions(["--size"], "/workspace"));
 
+        exception.IsNotNull();
+        exception.Is<ArgumentException>();
         exception.Message.Contains("Missing value for '--size'", StringComparison.Ordinal).IsTrue();
     }
 
     [Fact]
     public void ParseOptions_ThrowsClearError_WhenSizeValueIsInvalid()
     {
-        var exception = Assert.Throws<ArgumentException>(() => McpServerHost.ParseOptions(["--size", "huge"], "/workspace"));
+        var exception = Record.Exception(() => McpServerHost.ParseOptions(["--size", "huge"], "/workspace"));
 
+        exception.IsNotNull();
+        exception.Is<ArgumentException>();
         exception.Message.Contains("Invalid value 'huge' for '--size'", StringComparison.Ordinal).IsTrue();
     }
 
     [Fact]
     public void ParseOptions_ThrowsClearError_WhenSizeOptionIsDuplicated()
     {
-        var exception = Assert.Throws<ArgumentException>(() => McpServerHost.ParseOptions(["--size", "small", "--size", "big"], "/workspace"));
+        var exception = Record.Exception(() => McpServerHost.ParseOptions(["--size", "small", "--size", "big"], "/workspace"));
 
+        exception.IsNotNull();
+        exception.Is<ArgumentException>();
         exception.Message.Contains("The '--size' option may only be specified once.", StringComparison.Ordinal).IsTrue();
     }
 
     [Fact]
     public void ParseOptions_ThrowsClearError_ForUnknownArguments()
     {
-        var exception = Assert.Throws<ArgumentException>(() => McpServerHost.ParseOptions(["--wat"], "/workspace"));
+        var exception = Record.Exception(() => McpServerHost.ParseOptions(["--wat"], "/workspace"));
 
+        exception.IsNotNull();
+        exception.Is<ArgumentException>();
         exception.Message.Contains("Unknown argument '--wat'", StringComparison.Ordinal).IsTrue();
     }
 }
