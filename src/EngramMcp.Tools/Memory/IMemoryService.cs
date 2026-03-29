@@ -1,24 +1,10 @@
-using EngramMcp.Tools.Maintenance;
+using EngramMcp.Tools.Memory.Retention;
 
 namespace EngramMcp.Tools.Memory;
 
 public interface IMemoryService
 {
-    Task StoreAsync(
-        string section,
-        string text,
-        MemoryImportance? importance = null,
-        CancellationToken cancellationToken = default);
-
-    Task<MemoryContainer> ReadAsync(string section, CancellationToken cancellationToken = default);
-
-    Task<MaintenanceSectionReadResult> ReadForMaintenanceAsync(string section, CancellationToken cancellationToken = default);
-
-    Task<MemoryContainer> RecallAsync(CancellationToken cancellationToken = default);
-
-    Task<MaintenanceSectionWriteResult> WriteForMaintenanceAsync(
-        string section,
-        string consolidationToken,
-        IReadOnlyList<MaintenanceMemoryEntry> entries,
-        CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<RecallMemory>> RecallAsync(CancellationToken cancellationToken = default);
+    Task RememberAsync(RetentionTier retentionTier, string text, CancellationToken cancellationToken = default);
+    Task ReinforceAsync(IReadOnlyList<string> memoryIds, CancellationToken cancellationToken = default);
 }

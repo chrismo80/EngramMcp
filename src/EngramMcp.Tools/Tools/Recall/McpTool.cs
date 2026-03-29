@@ -6,12 +6,11 @@ namespace EngramMcp.Tools.Tools.Recall;
 
 public sealed class McpTool(IMemoryService memoryService) : Tool
 {
-    [McpServerTool(Name = "recall", Title = "Recall Memories", ReadOnly = true, Idempotent = true)]
-    [Description("Retrieve previously stored memories. Treat the returned memory as helpful starting context for this session.")]
-    public async Task<RecallResponse> ExecuteAsync(CancellationToken cancellationToken)
+    [McpServerTool(Name = "recall", Title = "Recall Memories")]
+    [Description("Load the current memory set for the session.")]
+    public async Task<Response> ExecuteAsync(CancellationToken cancellationToken = default)
     {
-        var document = await memoryService.RecallAsync(cancellationToken).ConfigureAwait(false);
-
-        return RecallResponseFactory.Create(document);
+        var memories = await memoryService.RecallAsync(cancellationToken).ConfigureAwait(false);
+        return new Response(memories);
     }
 }

@@ -1,5 +1,4 @@
 using EngramMcp.Tools.Memory;
-using EngramMcp.Tools.Tests.TestDoubles;
 using Is.Assertions;
 using Xunit;
 
@@ -8,30 +7,18 @@ namespace EngramMcp.Tools.Tests.Tools;
 public sealed class RecallToolTests
 {
     [Fact]
-    public async Task ExecuteAsync_returns_visible_memories_and_custom_sections()
+    public async Task ExecuteAsync_returns_memories_from_service()
     {
         var memoryService = new ToolTestMemoryService
         {
-            RecallResult = new MemoryContainer
-            {
-                Memories = new Dictionary<string, List<MemoryEntry>>(StringComparer.Ordinal)
-                {
-                    [BuiltInMemorySections.LongTerm] = [new MemoryEntry(DateTime.Now, "Durable fact", MemoryImportance.High)],
-                    [BuiltInMemorySections.MediumTerm] = [],
-                    [BuiltInMemorySections.ShortTerm] = []
-                },
-                CustomSections = [new MemorySectionSummary("project-x", 2)]
-            }
+            RecallResult = [new RecallMemory("id-1", "Remember this")]
         };
         var tool = new EngramMcp.Tools.Tools.Recall.McpTool(memoryService);
 
-        var response = await tool.ExecuteAsync(CancellationToken.None);
+        var response = await tool.ExecuteAsync();
 
-        response.Memories[BuiltInMemorySections.LongTerm].Count.Is(1);
-        response.Memories[BuiltInMemorySections.LongTerm][0].Text.Is("Durable fact");
-        response.Memories[BuiltInMemorySections.LongTerm][0].Importance.Is("high");
-        response.CustomSections.IsNotNull();
-        response.CustomSections![0].Name.Is("project-x");
-        response.CustomSections[0].EntryCount.Is(2);
+        response.Memories.Count.Is(1);
+        response.Memories[0].Id.Is("id-1");
+        response.Memories[0].Text.Is("Remember this");
     }
 }

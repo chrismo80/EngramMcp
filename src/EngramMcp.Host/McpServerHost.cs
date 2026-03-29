@@ -1,4 +1,3 @@
-using EngramMcp.Tools.Memory;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
@@ -24,8 +23,6 @@ public static class McpServerHost
         ArgumentException.ThrowIfNullOrWhiteSpace(startupDirectory);
 
         string? filePath = null;
-        MemorySize? size = null;
-
         for (var index = 0; index < args.Length; index++)
         {
             var argument = args[index];
@@ -46,29 +43,8 @@ public static class McpServerHost
 
                     break;
 
-                case "--size":
-                    if (size is not null)
-                        throw new ArgumentException("The '--size' option may only be specified once.", nameof(args));
-
-                    if (index + 1 >= args.Length)
-                        throw new ArgumentException("Missing value for '--size'. Expected '--size <small|normal|big>'.", nameof(args));
-
-                    var sizeValue = args[++index];
-                    if (string.IsNullOrWhiteSpace(sizeValue))
-                        throw new ArgumentException("The '--size' value must not be empty or whitespace.", nameof(args));
-
-                    size = sizeValue switch
-                    {
-                        "small" => MemorySize.Small,
-                        "normal" => MemorySize.Normal,
-                        "big" => MemorySize.Big,
-                        _ => throw new ArgumentException($"Invalid value '{sizeValue}' for '--size'. Expected one of: small, normal, big.", nameof(args))
-                    };
-
-                    break;
-
                 default:
-                    throw new ArgumentException($"Unknown argument '{argument}'. Expected '--file <path>' or '--size <small|normal|big>'.", nameof(args));
+                    throw new ArgumentException($"Unknown argument '{argument}'. Expected '--file <path>'.", nameof(args));
             }
         }
 
@@ -76,8 +52,7 @@ public static class McpServerHost
 
         return new MemoryFileOptions
         {
-            FilePath = filePath,
-            Size = size ?? MemorySize.Small
+            FilePath = filePath
         };
     }
 }

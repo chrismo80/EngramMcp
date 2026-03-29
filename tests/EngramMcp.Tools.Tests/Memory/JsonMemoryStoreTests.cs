@@ -1,5 +1,5 @@
 using System.Text.Json;
-using EngramMcp.Tools.Memory;
+using EngramMcp.Tools.Memory.Storage;
 using Is.Assertions;
 using Xunit;
 
@@ -8,68 +8,65 @@ namespace EngramMcp.Tools.Tests.Memory;
 public sealed class JsonMemoryStoreTests
 {
     [Fact]
-    public async Task EnsureInitializedAsync_creates_memory_file_with_built_in_sections()
+    public async Task EnsureInitializedAsync_creates_empty_memory_document()
     {
         using var memoryFile = new TemporaryMemoryFile();
-        var store = new JsonMemoryStore(memoryFile.FilePath, new MemoryCatalog(MemorySize.Small));
+        var store = new JsonMemoryStore(memoryFile.FilePath);
 
         await store.EnsureInitializedAsync();
 
         File.Exists(memoryFile.FilePath).IsTrue();
 
         using var document = JsonDocument.Parse(await File.ReadAllTextAsync(memoryFile.FilePath));
-        document.RootElement.TryGetProperty(BuiltInMemorySections.LongTerm, out _).IsTrue();
-        document.RootElement.TryGetProperty(BuiltInMemorySections.MediumTerm, out _).IsTrue();
-        document.RootElement.TryGetProperty(BuiltInMemorySections.ShortTerm, out _).IsTrue();
+        document.RootElement.TryGetProperty("memories", out var memories).IsTrue();
+        memories.ValueKind.Is(JsonValueKind.Array);
+        memories.GetArrayLength().Is(0);
     }
 
     [Fact]
-    public async Task UpdateAsync_persists_memory_entries_to_json_file()
+    public async Task SaveAsync_persists_memory_entries_to_json_file()
     {
         using var memoryFile = new TemporaryMemoryFile();
-        var store = new JsonMemoryStore(memoryFile.FilePath, new MemoryCatalog(MemorySize.Small));
+        var store = new JsonMemoryStore(memoryFile.FilePath);
 
-        await store.UpdateAsync(container =>
+        await store.SaveAsync(new PersistedMemoryDocument
         {
-            container.Memories[BuiltInMemorySections.LongTerm].Add(new MemoryEntry(
-                new DateTime(2026, 3, 28, 10, 15, 30, DateTimeKind.Local),
-                "Durable fact",
-                MemoryImportance.High));
+            Memories =
+            [
+                new PersistedMemory { Id = "260329142501", Text = "Durable fact", Retention = 10 }
+            ]
         });
 
         var json = await File.ReadAllTextAsync(memoryFile.FilePath);
 
         json.Contains("Durable fact", StringComparison.Ordinal).IsTrue();
-        json.Contains("\"importance\": \"high\"", StringComparison.Ordinal).IsTrue();
+        json.Contains("\"id\": \"260329142501\"", StringComparison.Ordinal).IsTrue();
     }
 
     [Fact]
-    public async Task LoadAsync_reads_existing_custom_section_from_json_file()
+    public async Task LoadAsync_reads_existing_memories_from_json_file()
     {
         using var memoryFile = new TemporaryMemoryFile();
 
         await File.WriteAllTextAsync(memoryFile.FilePath, """
         {
-          "long-term": [],
-          "medium-term": [],
-          "short-term": [],
-          "project-x": [
+          "memories": [
             {
-              "timestamp": "2026-03-28T10:15:30.0000000+01:00",
+              "id": "260329142501",
               "text": "Remember project detail",
-              "importance": "high"
+              "retention": 10
             }
           ]
         }
         """);
 
-        var store = new JsonMemoryStore(memoryFile.FilePath, new MemoryCatalog(MemorySize.Small));
+        var store = new JsonMemoryStore(memoryFile.FilePath);
 
-        var container = await store.LoadAsync();
+        var document = await store.LoadAsync();
 
-        container.Memories.ContainsKey("project-x").IsTrue();
-        container.Memories["project-x"].Count.Is(1);
-        container.Memories["project-x"][0].Text.Is("Remember project detail");
-        container.Memories["project-x"][0].Importance.Is(MemoryImportance.High);
+        document.Memories.Count.Is(1);
+        document.Memories[0].Id.Is("260329142501");
+        document.Memories[0].Text.Is("Remember project detail");
+        document.Memories[0].Retention.Is(10d);
     }
 }

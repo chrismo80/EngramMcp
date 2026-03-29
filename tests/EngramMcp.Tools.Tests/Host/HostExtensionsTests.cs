@@ -1,12 +1,11 @@
 using System.Reflection;
 using EngramMcp.Host;
-using EngramMcp.Tools.Memory;
+using EngramMcp.Tools.Memory.Storage;
 using Is.Assertions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using ModelContextProtocol.Server;
 using Xunit;
-using static EngramMcp.Tools.Memory.BuiltInMemorySections;
 
 namespace EngramMcp.Tools.Tests.Host;
 
@@ -28,7 +27,7 @@ public sealed class HostExtensionsTests
     {
         var services = new ServiceCollection();
 
-        services.Compose(new MemoryFileOptions { FilePath = "memory.json", Size = MemorySize.Normal });
+        services.Compose(new MemoryFileOptions { FilePath = "memory.json" });
 
         using var serviceProvider = services.BuildServiceProvider();
         var options = serviceProvider.GetRequiredService<IOptions<McpServerOptions>>().Value;
@@ -40,18 +39,13 @@ public sealed class HostExtensionsTests
     }
 
     [Fact]
-    public void Compose_ConfiguresMemoryCatalogWithSelectedSize()
+    public void Compose_RegistersJsonMemoryStore()
     {
         var services = new ServiceCollection();
 
-        services.Compose(new MemoryFileOptions { FilePath = "memory.json", Size = MemorySize.Small });
+        services.Compose(new MemoryFileOptions { FilePath = "memory.json" });
 
         using var serviceProvider = services.BuildServiceProvider();
-        var catalog = serviceProvider.GetRequiredService<IMemoryCatalog>();
-
-        catalog.GetByName(ShortTerm).Capacity.Is(5);
-        catalog.GetByName(MediumTerm).Capacity.Is(10);
-        catalog.GetByName(LongTerm).Capacity.Is(20);
-        catalog.GetByName("project-x").Capacity.Is(20);
+        serviceProvider.GetRequiredService<EngramMcp.Tools.Memory.Storage.IMemoryStore>().Is<JsonMemoryStore>();
     }
 }

@@ -1,56 +1,30 @@
-using EngramMcp.Tools.Maintenance;
 using EngramMcp.Tools.Memory;
+using EngramMcp.Tools.Memory.Retention;
 
-namespace EngramMcp.Tools.Tests.TestDoubles;
+namespace EngramMcp.Tools.Tests.Tools;
 
 internal sealed class ToolTestMemoryService : IMemoryService
 {
-    public string? StoredSection { get; private set; }
-    public string? StoredText { get; private set; }
-    public MemoryImportance? StoredImportance { get; private set; }
-    public MemoryContainer ReadResult { get; init; } = new();
-    public MemoryContainer RecallResult { get; init; } = new();
-    public MaintenanceSectionReadResult MaintenanceReadResult { get; init; } = new()
-    {
-        Section = "project-x",
-        Entries = [],
-        ConsolidationToken = "token-1"
-    };
-    public MaintenanceSectionWriteResult MaintenanceWriteResult { get; init; } = new()
-    {
-        Section = "project-x",
-        Entries = []
-    };
+    public RetentionTier? RememberedTier { get; private set; }
+    public string? RememberedText { get; private set; }
+    public IReadOnlyList<string>? ReinforcedMemoryIds { get; private set; }
+    public IReadOnlyList<RecallMemory> RecallResult { get; init; } = [];
 
-    public Task StoreAsync(string section, string text, MemoryImportance? importance = null, CancellationToken cancellationToken = default)
-    {
-        StoredSection = section;
-        StoredText = text;
-        StoredImportance = importance;
-        return Task.CompletedTask;
-    }
-
-    public Task<MemoryContainer> ReadAsync(string section, CancellationToken cancellationToken = default)
-    {
-        return Task.FromResult(ReadResult);
-    }
-
-    public Task<MaintenanceSectionReadResult> ReadForMaintenanceAsync(string section, CancellationToken cancellationToken = default)
-    {
-        return Task.FromResult(MaintenanceReadResult);
-    }
-
-    public Task<MemoryContainer> RecallAsync(CancellationToken cancellationToken = default)
+    public Task<IReadOnlyList<RecallMemory>> RecallAsync(CancellationToken cancellationToken = default)
     {
         return Task.FromResult(RecallResult);
     }
 
-    public Task<MaintenanceSectionWriteResult> WriteForMaintenanceAsync(
-        string section,
-        string consolidationToken,
-        IReadOnlyList<MaintenanceMemoryEntry> entries,
-        CancellationToken cancellationToken = default)
+    public Task RememberAsync(RetentionTier retentionTier, string text, CancellationToken cancellationToken = default)
     {
-        return Task.FromResult(MaintenanceWriteResult);
+        RememberedTier = retentionTier;
+        RememberedText = text;
+        return Task.CompletedTask;
+    }
+
+    public Task ReinforceAsync(IReadOnlyList<string> memoryIds, CancellationToken cancellationToken = default)
+    {
+        ReinforcedMemoryIds = memoryIds;
+        return Task.CompletedTask;
     }
 }

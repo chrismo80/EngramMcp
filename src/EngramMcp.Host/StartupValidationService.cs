@@ -1,4 +1,4 @@
-using EngramMcp.Tools.Memory;
+using EngramMcp.Tools.Memory.Storage;
 using Microsoft.Extensions.Hosting;
 
 namespace EngramMcp.Host;

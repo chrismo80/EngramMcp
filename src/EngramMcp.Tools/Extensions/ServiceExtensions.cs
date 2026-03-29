@@ -1,7 +1,10 @@
 using System.Reflection;
 using Microsoft.Extensions.DependencyInjection;
 using EngramMcp.Tools.Memory;
-using EngramMcp.Tools.Maintenance;
+using EngramMcp.Tools.Memory.Identity;
+using EngramMcp.Tools.Memory.Retention;
+using EngramMcp.Tools.Memory.Session;
+using EngramMcp.Tools.Memory.Storage;
 
 namespace EngramMcp.Tools.Extensions;
 
@@ -9,10 +12,11 @@ public static class ServiceExtensions
 {
     extension(IServiceCollection services)
     {
-        public IServiceCollection WithEngramMcp(string memoryFilePath, MemorySize memorySize) => services
-            .AddSingleton<IMemoryCatalog>(_ => new MemoryCatalog(memorySize))
-            .AddSingleton<IMemoryStore>(provider => new JsonMemoryStore(memoryFilePath, provider.GetRequiredService<IMemoryCatalog>()))
-            .AddSingleton<IMaintenanceTokenProvider, MaintenanceTokenProvider>()
+        public IServiceCollection WithEngramMcp(string memoryFilePath) => services
+            .AddSingleton<IMemoryIdGenerator, TimestampMemoryIdGenerator>()
+            .AddSingleton<IRetentionPolicy, DefaultRetentionPolicy>()
+            .AddSingleton<SessionReinforcementTracker>()
+            .AddSingleton<EngramMcp.Tools.Memory.Storage.IMemoryStore>(_ => new EngramMcp.Tools.Memory.Storage.JsonMemoryStore(memoryFilePath))
             .AddSingleton<IMemoryService, MemoryService>()
             .AddImplementations<Tool>();
 

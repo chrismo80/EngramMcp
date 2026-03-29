@@ -1,346 +1,125 @@
-using System.Globalization;
-using EngramMcp.Tools.Maintenance;
+using EngramMcp.Tools.Memory.Identity;
+using EngramMcp.Tools.Memory.Retention;
+using EngramMcp.Tools.Memory.Session;
+using EngramMcp.Tools.Memory.Storage;
 
 namespace EngramMcp.Tools.Memory;
 
 public sealed class MemoryService(
-    IMemoryCatalog memoryCatalog,
-    IMemoryStore memoryStore,
-    IMaintenanceTokenProvider maintenanceTokenProvider)
-    : IMemoryService
+    Storage.IMemoryStore memoryStore,
+    IMemoryIdGenerator memoryIdGenerator,
+    IRetentionPolicy retentionPolicy,
+    SessionReinforcementTracker reinforcementTracker) : IMemoryService
 {
-    private const int MaxMemoryTextLength = 500;
+    private readonly SemaphoreSlim _gate = new(1, 1);
+    private PersistedMemoryDocument? _document;
 
-    public MemoryService(IMemoryCatalog memoryCatalog, IMemoryStore memoryStore)
-        : this(memoryCatalog, memoryStore, new MaintenanceTokenProvider())
+    public async Task<IReadOnlyList<RecallMemory>> RecallAsync(CancellationToken cancellationToken = default)
     {
-    }
-
-    public Task StoreAsync(
-        string section,
-        string text,
-        MemoryImportance? importance = null,
-        CancellationToken cancellationToken = default)
-    {
-        var normalizedSection = NormalizeSectionIdentifier(section);
-
-        return memoryStore.UpdateAsync(
-            container =>
-            {
-                var resolvedSection = ResolveSectionName(normalizedSection, container);
-                var memory = memoryCatalog.GetByName(resolvedSection);
-                memory.Store(container, new MemoryEntry(CreateTimestamp(), text, importance));
-            },
-            cancellationToken);
-    }
-
-    public async Task<MemoryContainer> ReadAsync(string section, CancellationToken cancellationToken = default)
-    {
-        var normalizedSection = NormalizeSectionIdentifier(section);
-
-        var container = await memoryStore.LoadAsync(cancellationToken).ConfigureAwait(false);
-        var resolvedSection = TryResolveExistingSectionName(normalizedSection, container);
-
-        if (resolvedSection is not null)
-            return CreateSectionDocument(resolvedSection, container.Memories.TryGetValue(resolvedSection, out var entries) ? entries : []);
-
-        throw new KeyNotFoundException($"Memory section '{normalizedSection}' was not found. Available sections: {GetAvailableSectionNames(container)}.");
-    }
-
-    public async Task<MaintenanceSectionReadResult> ReadForMaintenanceAsync(string section, CancellationToken cancellationToken = default)
-    {
-        var normalizedSection = NormalizeSectionIdentifier(section);
-        var container = await memoryStore.LoadAsync(cancellationToken).ConfigureAwait(false);
-        var resolvedSection = TryResolveExistingSectionName(normalizedSection, container)
-                              ?? throw MaintenanceSectionWriteException.SectionNotFound($"Memory section '{normalizedSection}' was not found. Available sections: {GetAvailableSectionNames(container)}.");
-        var entries = container.Memories.TryGetValue(resolvedSection, out var existingEntries) ? existingEntries : [];
-
-        return new MaintenanceSectionReadResult
-        {
-            Section = resolvedSection,
-            Entries = [.. entries.Select(ToMaintenanceEntry)],
-            ConsolidationToken = maintenanceTokenProvider.Issue(resolvedSection)
-        };
-    }
-
-    public async Task<MemoryContainer> RecallAsync(CancellationToken cancellationToken = default)
-    {
-        var container = await memoryStore.LoadAsync(cancellationToken).ConfigureAwait(false);
-
-        var recalled = new Dictionary<string, List<MemoryEntry>>(StringComparer.Ordinal);
-
-        foreach (var memory in memoryCatalog.GetRecallOrder(container))
-            recalled[memory.Name] = [.. memory.Read(container)];
-
-        return new MemoryContainer
-        {
-            Memories = recalled,
-            CustomSections = GetCustomSectionSummaries(container)
-        };
-    }
-
-    public async Task<MaintenanceSectionWriteResult> WriteForMaintenanceAsync(
-        string section,
-        string consolidationToken,
-        IReadOnlyList<MaintenanceMemoryEntry> entries,
-        CancellationToken cancellationToken = default)
-    {
-        var normalizedSection = NormalizeSectionIdentifier(section);
-
-        if (string.IsNullOrWhiteSpace(consolidationToken))
-            throw MaintenanceSectionWriteException.ConsolidationTokenMissing("Consolidation token is required for write mode. Call read first, then submit the full replacement for that same section.");
-
-        ArgumentNullException.ThrowIfNull(entries);
-
-        var replacementEntries = ValidateAndConvertMaintenanceEntries(entries);
-        string? resolvedSection = null;
-        MaintenanceTokenReservation reservation = default;
-        var hasReservation = false;
+        await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
 
         try
         {
-            await memoryStore.UpdateAsync(
-                container =>
-                {
-                    resolvedSection = TryResolveExistingSectionName(normalizedSection, container)
-                                      ?? throw MaintenanceSectionWriteException.SectionNotFound($"Memory section '{normalizedSection}' was not found. Read an existing section before starting consolidation.");
+            var document = await LoadDocumentAsync(cancellationToken).ConfigureAwait(false);
 
-                    var reservationStatus = maintenanceTokenProvider.TryReserveForSection(consolidationToken, resolvedSection, out reservation);
+            for (var index = 0; index < document.Memories.Count; index++)
+            {
+                var memory = document.Memories[index];
+                document.Memories[index] = memory with { Retention = retentionPolicy.Decay(memory.Retention) };
+            }
 
-                    if (reservationStatus == MaintenanceTokenReservationStatus.Invalid)
-                        throw MaintenanceSectionWriteException.ConsolidationTokenInvalid($"Consolidation token is invalid for section '{resolvedSection}'. Call read again for that section and use the returned token.");
+            document.Memories.RemoveAll(memory => retentionPolicy.ShouldDelete(memory.Retention));
 
-                    if (reservationStatus == MaintenanceTokenReservationStatus.Stale)
-                        throw MaintenanceSectionWriteException.ConsolidationTokenStale($"Consolidation token is stale for section '{resolvedSection}'. Call read again before any further consolidation.");
+            await memoryStore.SaveAsync(document, cancellationToken).ConfigureAwait(false);
 
-                    hasReservation = true;
-
-                    var memory = memoryCatalog.GetByName(resolvedSection);
-
-                    if (replacementEntries.Count > memory.Capacity)
-                        throw MaintenanceSectionWriteException.ValidationFailed(
-                            $"Replacement entries exceed capacity {memory.Capacity} for section '{resolvedSection}'.",
-                            [new MaintenanceSectionFailureDetail
-                            {
-                                Field = "entries",
-                                Message = $"Provide between 1 and {memory.Capacity} entries for section '{resolvedSection}'."
-                            }]);
-
-                    container.Memories[resolvedSection] = [.. replacementEntries];
-                },
-                cancellationToken).ConfigureAwait(false);
+            return document.Memories
+                .OrderByDescending(memory => memory.Retention)
+                .Select(memory => new RecallMemory(memory.Id, memory.Text))
+                .ToArray();
         }
-        catch
+        finally
         {
-            if (hasReservation)
-                maintenanceTokenProvider.Release(reservation);
-
-            throw;
+            _gate.Release();
         }
-
-        maintenanceTokenProvider.Complete(reservation);
-
-        return new MaintenanceSectionWriteResult
-        {
-            Section = resolvedSection!,
-            Entries = [.. replacementEntries.Select(ToMaintenanceEntry)]
-        };
     }
 
-    private static MemoryContainer CreateSectionDocument(string section, IReadOnlyList<MemoryEntry> entries)
+    public async Task RememberAsync(RetentionTier retentionTier, string text, CancellationToken cancellationToken = default)
     {
-        return new MemoryContainer
+        _ = new PersistedMemory { Id = "validation-placeholder", Text = text, Retention = 1 };
+
+        await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+
+        try
         {
-            Memories = new Dictionary<string, List<MemoryEntry>>(StringComparer.Ordinal)
+            var document = await LoadDocumentAsync(cancellationToken).ConfigureAwait(false);
+            var existingIds = document.Memories.Select(memory => memory.Id).ToArray();
+            var memory = new PersistedMemory
             {
-                [section] = [.. entries]
-            }
-        };
-    }
+                Id = memoryIdGenerator.CreateId(existingIds, DateTime.Now),
+                Text = text,
+                Retention = retentionPolicy.CreateInitialRetention(retentionTier)
+            };
 
-    private static MaintenanceMemoryEntry ToMaintenanceEntry(MemoryEntry entry)
-    {
-        return new MaintenanceMemoryEntry
-        {
-            Timestamp = entry.Timestamp.ToString("O", CultureInfo.InvariantCulture),
-            Text = entry.Text,
-            Importance = entry.Importance == MemoryImportance.Normal ? null : entry.Importance.ToSerializedValue()
-        };
-    }
+            document.Memories.Add(memory);
 
-    private static MemoryEntry ToMemoryEntry(MaintenanceMemoryEntry entry)
-    {
-        MemoryImportance? importance = null;
-
-        if (entry.Importance is { } importanceValue)
-        {
-            importanceValue.TryParseSerializedValue(out var parsedImportance);
-            importance = parsedImportance;
+            await memoryStore.SaveAsync(document, cancellationToken).ConfigureAwait(false);
         }
-
-        DateTime.TryParse(entry.Timestamp, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var timestamp);
-
-        return new MemoryEntry(timestamp, entry.Text, importance);
-    }
-
-    private static List<MemoryEntry> ValidateAndConvertMaintenanceEntries(IReadOnlyList<MaintenanceMemoryEntry> entries)
-    {
-        if (entries.Count == 0)
+        finally
         {
-            throw MaintenanceSectionWriteException.ValidationFailed(
-                "Consolidation writes must include at least one entry. This tool replaces one section with a consolidated set; it does not clear sections.",
-                [new MaintenanceSectionFailureDetail
-                {
-                    Field = "entries",
-                    Message = "Provide the complete consolidated replacement list with at least one entry."
-                }]);
+            _gate.Release();
         }
+    }
 
-        var details = new List<MaintenanceSectionFailureDetail>();
+    public async Task ReinforceAsync(IReadOnlyList<string> memoryIds, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(memoryIds);
 
-        for (var index = 0; index < entries.Count; index++)
+        if (memoryIds.Count == 0)
+            throw new ArgumentException("At least one memory id is required.", nameof(memoryIds));
+
+        await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+
+        try
         {
-            var entry = entries[index];
-            var fieldPrefix = $"entries[{index}]";
+            var document = await LoadDocumentAsync(cancellationToken).ConfigureAwait(false);
+            var memoriesById = document.Memories.ToDictionary(memory => memory.Id, StringComparer.Ordinal);
 
-            if (entry is null)
+            foreach (var memoryId in memoryIds)
             {
-                details.Add(new MaintenanceSectionFailureDetail
-                {
-                    Field = fieldPrefix,
-                    Message = "Entry is required."
-                });
-                continue;
+                if (string.IsNullOrWhiteSpace(memoryId) || !memoriesById.ContainsKey(memoryId))
+                    throw new KeyNotFoundException($"Unknown memory '{memoryId}'.");
             }
 
-            if (string.IsNullOrWhiteSpace(entry.Timestamp))
+            var updatedAnyRetention = false;
+
+            foreach (var memoryId in memoryIds.Distinct(StringComparer.Ordinal))
             {
-                details.Add(new MaintenanceSectionFailureDetail
-                {
-                    Field = $"{fieldPrefix}.timestamp",
-                    Message = "Timestamp is required and must be a valid round-trip datetime string."
-                });
-            }
-            else if (!DateTime.TryParse(entry.Timestamp, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out _))
-            {
-                details.Add(new MaintenanceSectionFailureDetail
-                {
-                    Field = $"{fieldPrefix}.timestamp",
-                    Message = $"Timestamp '{entry.Timestamp}' is invalid."
-                });
+                if (!reinforcementTracker.MarkIfFirstTime(memoryId))
+                    continue;
+
+                var memory = memoriesById[memoryId];
+                var updated = memory with { Retention = retentionPolicy.Reinforce(memory.Retention) };
+                var index = document.Memories.FindIndex(existing => string.Equals(existing.Id, memoryId, StringComparison.Ordinal));
+                document.Memories[index] = updated;
+                updatedAnyRetention = true;
             }
 
-            if (string.IsNullOrWhiteSpace(entry.Text))
-            {
-                details.Add(new MaintenanceSectionFailureDetail
-                {
-                    Field = $"{fieldPrefix}.text",
-                    Message = "Text is required and must not be empty or whitespace."
-                });
-            }
-            else
-            {
-                if (entry.Text.Contains('\r') || entry.Text.Contains('\n'))
-                {
-                    details.Add(new MaintenanceSectionFailureDetail
-                    {
-                        Field = $"{fieldPrefix}.text",
-                        Message = "Text must be a single line without carriage returns or line feeds."
-                    });
-                }
-
-                if (entry.Text.Length > MaxMemoryTextLength)
-                {
-                    details.Add(new MaintenanceSectionFailureDetail
-                    {
-                        Field = $"{fieldPrefix}.text",
-                        Message = $"Text must be {MaxMemoryTextLength} characters or fewer."
-                    });
-                }
-            }
-
-            if (entry.Importance is { } importanceValue && !importanceValue.TryParseSerializedValue(out _))
-            {
-                details.Add(new MaintenanceSectionFailureDetail
-                {
-                    Field = $"{fieldPrefix}.importance",
-                    Message = $"Importance '{importanceValue}' is invalid. Supported values: low, normal, high."
-                });
-            }
+            if (updatedAnyRetention)
+                await memoryStore.SaveAsync(document, cancellationToken).ConfigureAwait(false);
         }
-
-        if (details.Count > 0)
-            throw MaintenanceSectionWriteException.ValidationFailed("Consolidation write request is invalid.", details);
-
-        return entries.Select(ToMemoryEntry).ToList();
-    }
-
-    private string GetAvailableSectionNames(MemoryContainer container)
-    {
-        var builtInNames = memoryCatalog.Memories.Select(memory => memory.Name);
-        var customNames = container.Memories.Keys
-            .Except(memoryCatalog.Memories.Select(memory => memory.Name), StringComparer.OrdinalIgnoreCase)
-            .OrderBy(name => name, StringComparer.OrdinalIgnoreCase);
-
-        return string.Join(", ", builtInNames.Concat(customNames));
-    }
-
-    private List<MemorySectionSummary> GetCustomSectionSummaries(MemoryContainer container)
-    {
-        var builtInNames = memoryCatalog.Memories
-            .Select(memory => memory.Name)
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
-
-        return container.Memories
-            .Where(pair => !builtInNames.Contains(pair.Key))
-            .Select(pair => new MemorySectionSummary(pair.Key, pair.Value.Count))
-            .OrderByDescending(summary => summary.EntryCount)
-            .ThenBy(summary => summary.Name, StringComparer.Ordinal)
-            .ToList();
-    }
-
-    private string ResolveSectionName(string requestedSection, MemoryContainer container)
-    {
-        var fixedMemory = memoryCatalog.GetByName(requestedSection);
-
-        if (memoryCatalog.Memories.Any(memory => string.Equals(memory.Name, requestedSection, StringComparison.OrdinalIgnoreCase)))
-            return fixedMemory.Name;
-
-        return FindExistingCustomSectionName(requestedSection, container) ?? requestedSection;
-    }
-
-    private string? TryResolveExistingSectionName(string requestedSection, MemoryContainer container)
-    {
-        var fixedMemory = memoryCatalog.Memories.FirstOrDefault(memory => string.Equals(memory.Name, requestedSection, StringComparison.OrdinalIgnoreCase));
-
-        if (fixedMemory is not null)
-            return fixedMemory.Name;
-
-        return FindExistingCustomSectionName(requestedSection, container);
-    }
-
-    private static string NormalizeSectionIdentifier(string? section)
-    {
-        if (string.IsNullOrWhiteSpace(section))
-            throw new ArgumentException("Memory section identifier must not be null, empty, or whitespace.", nameof(section));
-
-        return section.Trim();
-    }
-
-    private static string? FindExistingCustomSectionName(string requestedSection, MemoryContainer container)
-    {
-        var matches = container.Memories.Keys
-            .Where(name => string.Equals(name, requestedSection, StringComparison.OrdinalIgnoreCase))
-            .Distinct(StringComparer.Ordinal)
-            .ToArray();
-
-        return matches.Length switch
+        finally
         {
-            0 => null,
-            1 => matches[0],
-            _ => throw new InvalidOperationException($"Memory store contains multiple sections that differ only by casing for '{requestedSection}'.")
-        };
+            _gate.Release();
+        }
     }
 
-    private static DateTime CreateTimestamp() => DateTime.SpecifyKind(DateTime.Now, DateTimeKind.Local);
+    private async Task<PersistedMemoryDocument> LoadDocumentAsync(CancellationToken cancellationToken)
+    {
+        if (_document is not null)
+            return _document;
+
+        await memoryStore.EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
+        _document = await memoryStore.LoadAsync(cancellationToken).ConfigureAwait(false);
+        return _document;
+    }
 }
