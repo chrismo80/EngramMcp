@@ -2,10 +2,9 @@
 
 # EngramMcp
 
-A Model Context Protocol (MCP) server for persistent agent memory.
+A Model Context Protocol server for persistent agent memory.
 
 ## Get It as a .NET Tool
-
 
 [![NuGet](https://img.shields.io/nuget/v/EngramMcp.svg)](https://www.nuget.org/packages/EngramMcp/)
 [![.NET](https://img.shields.io/badge/.NET-10.0-blue)](https://www.nuget.org/packages/EngramMcp/)
@@ -16,18 +15,17 @@ A Model Context Protocol (MCP) server for persistent agent memory.
 dotnet tool install -g EngramMcp
 ```
 
-### Configuration
+## Configuration
 
 EngramMcp stores memory by default in `.engram/memory.json` under the current workspace directory.
 
 Startup options:
 
-- `--file <path>` keeps the memory file at a fixed location
-- `--size <small|normal|big>` selects the memory capacity profile; default is `small`
+- `--file <path>` stores memory at a fixed location
 
-Use an absolute file path for `--file` when you want the memory location to stay stable across launches, even outside the workspace.
+Use an absolute file path for `--file` when you want the memory location to stay stable across launches.
 
-Example with an explicit file path and larger memory budget:
+Example:
 
 ```json
 {
@@ -37,9 +35,7 @@ Example with an explicit file path and larger memory budget:
       "command": [
         "engrammcp",
         "--file",
-        "/absolute/path/to/memory.json",
-        "--size",
-        "big"
+        "/absolute/path/to/memory.json"
       ]
     }
   }
@@ -48,208 +44,127 @@ Example with an explicit file path and larger memory budget:
 
 ## What It Is
 
-EngramMcp is a local-first memory MCP for agents that need continuity, not a full knowledge platform. It gives coding agents and personal assistants a small, inspectable, structured memory they can carry across sessions without relying on hosted infrastructure.
+EngramMcp is a local-first memory MCP for agents that need continuity, not a search engine or knowledge platform.
 
-Built for trust and predictability, it focuses on durable facts, evolving context, and recent work state instead of embeddings, document ingestion, or opaque retrieval pipelines. The goal is not to build a general knowledge system; the goal is to give an agent a memory that stays durable, inspectable, and simple enough to trust.
+It gives an agent a small persistent memory with explicit remember, recall, and reinforce flows:
 
-It works best for developers and local-first AI users who want:
+- `recall` loads the current memory set
+- `remember_short`, `remember_medium`, and `remember_long` create new memories with different initial strengths
+- `reinforce` strengthens memories that proved useful again
 
-- persistent memory for a coding agent or personal assistant
-- local, human-readable storage they can inspect themselves
-- clear separation between durable facts, evolving context, and recent work state
-- lightweight continuity across days or weeks without extra infrastructure
-- a small and predictable memory model instead of a larger knowledge stack
+The model is intentionally simple:
 
-Typical uses include remembering preferences and conventions, carrying project context forward, preserving recent progress for the next session, and storing important facts or decisions in a form the human can audit.
+- one global memory pool
+- no sections
+- no search
+- no embeddings
+- no agent-visible scores
 
-EngramMcp is intentionally narrow. It is not designed to be:
+## Tools
 
-- a vector database or semantic retrieval engine
-- a document indexing or RAG platform
-- a collaborative team knowledge base
-- a high-scale multi-user write-heavy service
-- an enterprise platform for permissions, governance, or hosted memory
-
-It optimizes for:
-
-- local-first, transparent, structured storage
-- durable memory for everyday agent workflows
-- a model that stays small enough to reason about and simple enough to trust
-
-## What You Can Use It For
-
-| Tool                  | Description                                                                        |
-|-----------------------| ---------------------------------------------------------------------------------- |
-| **Recall**            | Load the built-in memory overview and list available custom sections               |
-| **Store Long-Term**   | Save durable facts and preferences worth keeping indefinitely                      |
-| **Store Medium-Term** | Save useful context that may change over time                                      |
-| **Store Short-Term**  | Save the recent working state for fast next-session continuation                   |
-| **Read Section**      | Read the contents of one specific memory section                                   |
-| **Consolidate**       | Clean up one existing section by rewriting it as a clearer, consolidated whole      |
-| **Store**             | Save memory into any named section, including custom sections created on first use |
+| Tool | Description |
+|---|---|
+| `recall` | Decays current memories, deletes weak ones, and returns the surviving list as `id` + `text` |
+| `remember_short` | Creates a new short-lived memory |
+| `remember_medium` | Creates a new medium-lived memory |
+| `remember_long` | Creates a new long-lived memory |
+| `reinforce` | Strengthens existing memories by id |
 
 ## Memory Model
 
-EngramMcp uses three built-in memory sections with capacities derived from the selected size profile:
+Each persisted memory contains:
 
-| Size | `long-term` | `medium-term` | `short-term` | custom sections |
-|------|-------------|---------------|--------------|-----------------|
-| `small` | 20 | 10 | 5 | 20 |
-| `normal` | 40 | 20 | 10 | 40 |
-| `big` | 80 | 40 | 20 | 80 |
-
-Agents can create custom sections through `store(section, text, importance?)`. Custom sections are created on first write and use the same capacity as `long-term` for the active size profile.
-
-Built-in sections appear first in `recall`. Custom sections are listed afterward with their names and memory counts, but their contents are not included in the default recall output.
-
-When a section exceeds its capacity, retention is applied globally within that section using a weighted score: older entries become more likely eviction candidates over time, while higher importance reduces that score and protects entries longer. The current weights are `low = 1`, `normal = 3`, and `high = 8`.
-
-Each stored entry contains:
-
-- `timestamp` - local write timestamp
-- `text` - a required single-line memory text with a maximum length of 500 characters
-- `importance` - optional importance level: `low`, `normal`, or `high`; unknown values currently fall back to `normal`
+- `id`
+- `text`
+- `retention`
 
 Example file shape:
 
 ```json
 {
-  "long-term": [
+  "memories": [
     {
-      "timestamp": "2026-03-10T10:15:30.0000000+01:00",
-      "text": "Agent K is my self-identity: not a chatbot, but a gentle coding-buddy",
-      "importance": "high"
+      "id": "260329142501",
+      "text": "Moldi prefers C#.",
+      "retention": 10.0
     },
     {
-      "timestamp": "2026-03-11T10:15:30.0000000+01:00",
-      "text": "The human prefers to communicate in Spanish."
-    }
-  ],
-  "medium-term": [
-    {
-      "timestamp": "2026-03-12T10:11:30.0000000+01:00",
-      "text": "Always use 'AssertWithIs' package for unit tests."
-    }
-  ],
-  "short-term": [
-    {
-      "timestamp": "2026-03-12T10:15:30.0000000+01:00",
-      "text": "Add the new feature X."
-    },
-    {
-      "timestamp": "2026-03-12T10:16:30.0000000+01:00",
-      "text": "Fixed the bug Y."
-    }
-  ],
-  "project-x": [
-    {
-      "timestamp": "2026-03-12T10:18:30.0000000+01:00",
-      "text": "The MCP workspace drift fix was implemented.",
-      "importance": "high"
+      "id": "260329142530-2",
+      "text": "README should match the implementation state before commit.",
+      "retention": 100.0
     }
   ]
 }
 ```
+
+`retention` is internal. It controls:
+
+- recall order
+- decay over time
+- deletion of weak memories
+
+The agent does not see retention values or formulas.
 
 ## Retrieval Model
 
-- `recall` is the curated overview for the built-in sections plus custom-section discovery
-- `read_section(section)` reads one exact section when you already know its name; section lookup is case-insensitive and trims surrounding whitespace
+`recall` is the session-start tool.
 
-Retrieval tools return structured JSON responses. These responses expose only the fields that belong to the retrieval contract:
+On every call it:
 
-- timestamps are never included in `recall` or `read_section`
-- `importance` is included only for `high`, serialized as `"high"`
-- `recall` always includes the built-in sections in the same order, even when empty
-- `recall.customSections` appears only when there are custom sections to list
+1. decays all memories
+2. deletes memories below the retention threshold
+3. persists those changes
+4. returns all surviving memories sorted by strength
 
-Example `recall` response shape:
+The response shape is minimal:
 
 ```json
 {
-  "memories": {
-    "long-term": [
-      {
-        "memory": "Agent K is my self-identity: not a chatbot, but a gentle coding-buddy",
-        "importance": "high"
-      }
-    ],
-    "medium-term": [],
-    "short-term": []
-  },
-  "customSections": [
+  "memories": [
     {
-      "name": "project-x",
-      "memories": 1
+      "id": "260329142501",
+      "text": "Moldi prefers C#."
+    },
+    {
+      "id": "260329142530-2",
+      "text": "README should match the implementation state before commit."
     }
   ]
 }
 ```
 
-Example `read_section(section)` success response shape:
+There is no search tool and no section-reading tool.
 
-```json
-{
-  "memories": {
-    "project-x": [
-      {
-        "memory": "The MCP workspace drift fix was implemented.",
-        "importance": "high"
-      }
-    ]
-  }
-}
-```
+## Storage Rules
 
-If `read_section(section)` receives a valid but unknown section name, it returns a normal success response with that exact requested section name mapped to an empty list. Invalid section identifiers still fail validation.
+All remember tools:
 
-Example `read_section(section)` empty response shape:
+- always create a new memory
+- do not attempt duplicate detection
+- persist immediately
 
-```json
-{
-  "memories": {
-    "project-x": []
-  }
-}
-```
+Memory text must:
 
-All write tools support optional `importance`, including `store(section, text, importance?)` and the built-in section writers.
+- not be null, empty, or whitespace
+- be exactly one line
+- not contain `\r` or `\n`
+- be at most 1000 characters long
 
-`consolidate` is for memory cleanup on exactly one existing section at a time. Think of it like memory consolidation during sleep: you pull a section out, sort and strengthen what matters, merge duplicates, reorganize scattered details, and write back a cleaner whole.
+## Reinforcement
 
-- use it when a section has become noisy, repetitive, or scattered and should be rewritten as one coherent section
-- the flow is simple: `read` the section, consolidate the entries externally, then `write` back the full revised section
-- the write step uses the returned token and fully replaces that section's contents
-- it works only on an existing section at a time; it does not create a new section
-- it is not for appending, partial patching, deleting individual entries, or other incremental edits
+`reinforce` accepts a list of memory ids.
 
+- unknown ids fail the whole call
+- the list must not be empty
+- reinforcement is persisted immediately
+- a memory is reinforced at most once per server session, even if repeated by mistake
 
+## System Prompt Guidance
 
-## System Prompt
+Use the tools roughly like this:
 
-## Memory
-
-### Retrieval
-
-Prefer using existing memory over asking the user to repeat information.
-Check memory before answering questions about the user, preferences, prior work, or ongoing tasks.
-
-- memory_recall: Call at the start of each session.
-- memory_read_section: Use for retrieving the full contents of a section.
-
-### Storage
-
-Store information when meaningful facts or checkpoints are learned, not after every message.
-
-Only store information that is likely to remain useful in future sessions.
-Store conclusions, not conversation.
-Avoid storing duplicate information.
-
-- memory_store_longterm: Use for personal facts about the user or your relationship that are unlikely to change (name, identity, values, personality, vibe).
-- memory_store_mediumterm: Use for personal and work-related information that may evolve over time (preferences, hobbies, working style, favorite tools, music taste).
-- memory_store_shortterm: Use for work-related context that helps resume progress in future sessions (completed tasks, checkpoints, important findings).
-- memory_store: Use for custom memory sections.
-
-### Consolidation
-
-- memory_consolidate: Never use this tool unless the user explicitly asks you to.
+- call `recall` at the start of a session
+- use `remember_short` for near-term working state
+- use `remember_medium` for context that may matter across future sessions
+- use `remember_long` for durable facts and stable preferences
+- use `reinforce` only for memories that proved useful again, not memories that were merely present

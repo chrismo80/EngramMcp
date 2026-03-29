@@ -2,8 +2,6 @@ namespace EngramMcp.Tools.Memory.Storage;
 
 public sealed record PersistedMemory
 {
-    private const int MaxTextLength = 1000;
-
     private string _id = null!;
     private string _text = null!;
 
@@ -16,7 +14,7 @@ public sealed record PersistedMemory
     public required string Text
     {
         get => _text;
-        init => _text = ValidateText(value);
+        init => _text = MemoryText.Validate(value);
     }
 
     public required double Retention
@@ -37,19 +35,5 @@ public sealed record PersistedMemory
             throw new ArgumentException("Memory id must not be null, empty, or whitespace.", nameof(id));
 
         return id.Trim();
-    }
-
-    private static string ValidateText(string? text)
-    {
-        if (string.IsNullOrWhiteSpace(text))
-            throw new ArgumentException("Memory text must not be null, empty, or whitespace.", nameof(text));
-
-        if (text.Contains('\r') || text.Contains('\n'))
-            throw new ArgumentException("Memory text must be a single line without carriage returns or line feeds.", nameof(text));
-
-        if (text.Length > MaxTextLength)
-            throw new ArgumentException($"Memory text must be {MaxTextLength} characters or fewer.", nameof(text));
-
-        return text;
     }
 }

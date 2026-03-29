@@ -45,7 +45,7 @@ public sealed class MemoryService(
 
     public async Task RememberAsync(RetentionTier retentionTier, string text, CancellationToken cancellationToken = default)
     {
-        _ = new PersistedMemory { Id = "validation-placeholder", Text = text, Retention = 1 };
+        text = MemoryText.Validate(text);
 
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
 

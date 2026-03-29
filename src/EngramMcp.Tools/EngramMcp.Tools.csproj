@@ -12,9 +12,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Folder Include="Maintenance\" />
-    <Folder Include="Tools\Consolidate\" />
-    <Folder Include="Tools\ReadSection\" />
     <Folder Include="Tools\Recall\" />
   </ItemGroup>
 
