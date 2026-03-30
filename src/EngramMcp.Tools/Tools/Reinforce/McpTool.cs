@@ -7,7 +7,7 @@ namespace EngramMcp.Tools.Tools.Reinforce;
 public sealed class McpTool(IMemoryService memoryService) : Tool
 {
     [McpServerTool(Name = "reinforce", Title = "Reinforce Memories")]
-    [Description("Reinforce existing memories that proved useful again.")]
+    [Description("Use for memories that were useful during the session.")]
     public Task ExecuteAsync(
         [Description("The memory ids to reinforce.")]
         IReadOnlyList<string> memoryIds,
