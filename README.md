@@ -193,9 +193,9 @@ Use the tools roughly like this:
 
 - call `recall` at the start of each session
 - use `remember_short` for work-related context that helps resume progress in future sessions (completed tasks, checkpoints, important findings)
-- use `memory_remember_medium` for personal and work-related information that may evolve over time (preferences, hobbies, working style, favorite tools, music taste)
-- use `memory_remember_long` for personal facts about the user or your relationship that are unlikely to change (name, identity, values, personality, vibe)
+- use `remember_medium` for personal and work-related information that may evolve over time (preferences, hobbies, working style, favorite tools, music taste)
+- use `remember_long` for personal facts about the user or your relationship that are unlikely to change (name, identity, values, personality, vibe)
 - after completing a task or reaching a meaningful milestone (e.g. a commit), consider whether any recalled memories materially influenced your reasoning, implementation, or communication in this session
-- use `memory_reinforce` only for memories you actively used, not memories you merely saw
+- use `reinforce` only for memories you actively used, not memories you merely saw
 - it is valid to reinforce nothing if no recalled memory materially helped
 - when unsure, reinforce fewer memories rather than more
