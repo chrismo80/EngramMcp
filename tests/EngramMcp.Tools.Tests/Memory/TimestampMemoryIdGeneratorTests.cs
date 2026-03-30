@@ -7,13 +7,26 @@ namespace EngramMcp.Tools.Tests.Memory;
 public sealed class TimestampMemoryIdGeneratorTests
 {
     [Fact]
-    public void CreateId_adds_suffix_when_base_id_already_exists()
+    public void GetUniqueId_returns_unique_ids_for_consecutive_calls()
     {
         var generator = new TimestampMemoryIdGenerator();
-        var now = new DateTime(2026, 3, 29, 14, 25, 1);
+        var ids = Enumerable.Range(0, 100)
+            .Select(_ => generator.GetUniqueId())
+            .ToArray();
 
-        var id = generator.CreateId(["260329142501", "260329142501-2"], now);
+        ids.Distinct(StringComparer.Ordinal).Count().Is(100);
+    }
 
-        id.Is("260329142501-3");
+    [Fact]
+    public async Task GetUniqueId_returns_unique_ids_for_parallel_calls()
+    {
+        var generator = new TimestampMemoryIdGenerator();
+        var tasks = Enumerable.Range(0, 100)
+            .Select(_ => Task.Run(generator.GetUniqueId))
+            .ToArray();
+
+        var ids = await Task.WhenAll(tasks);
+
+        ids.Distinct(StringComparer.Ordinal).Count().Is(100);
     }
 }

@@ -225,6 +225,6 @@ public sealed class MemoryServiceTests
 
     private sealed class FixedMemoryIdGenerator(string id) : IMemoryIdGenerator
     {
-        public string CreateId(IReadOnlyCollection<string> existingIds, DateTime now) => id;
+        public string GetUniqueId() => id;
     }
 }

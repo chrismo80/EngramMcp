@@ -6,7 +6,7 @@ using EngramMcp.Tools.Memory.Storage;
 namespace EngramMcp.Tools.Memory;
 
 public sealed class CachedMemoryService(
-    Storage.IMemoryStore memoryStore,
+    IMemoryStore memoryStore,
     IMemoryIdGenerator memoryIdGenerator,
     IRetentionPolicy retentionPolicy,
     SessionReinforcementTracker reinforcementTracker) : IMemoryService
@@ -53,10 +53,9 @@ public sealed class CachedMemoryService(
         try
         {
             var document = await LoadDocumentAsync(cancellationToken).ConfigureAwait(false);
-            var existingIds = document.Memories.Select(memory => memory.Id).ToArray();
             var memory = new PersistedMemory
             {
-                Id = memoryIdGenerator.CreateId(existingIds, DateTime.Now),
+                Id = memoryIdGenerator.GetUniqueId(),
                 Text = text,
                 Retention = retentionPolicy.CreateInitialRetention(retentionTier)
             };
