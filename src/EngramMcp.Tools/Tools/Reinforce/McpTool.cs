@@ -13,14 +13,7 @@ public sealed class McpTool(IMemoryService memoryService) : Tool
         IReadOnlyList<string> memoryIds,
         CancellationToken cancellationToken = default)
     {
-        try
-        {
-            await memoryService.ReinforceAsync(memoryIds, cancellationToken).ConfigureAwait(false);
-            return "Reinforced memories.";
-        }
-        catch (Exception exception) when (exception is ArgumentException or KeyNotFoundException)
-        {
-            return exception.Message;
-        }
+        var errorMessage = await memoryService.ReinforceAsync(memoryIds, cancellationToken).ConfigureAwait(false);
+        return errorMessage ?? "Reinforced memories.";
     }
 }

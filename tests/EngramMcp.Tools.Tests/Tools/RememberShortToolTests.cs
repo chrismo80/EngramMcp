@@ -22,14 +22,12 @@ public sealed class RememberShortToolTests
     [Fact]
     public async Task ExecuteAsync_returns_validation_message_for_invalid_text()
     {
-        var memoryService = new ToolTestMemoryService
-        {
-            RememberException = new ArgumentException("Memory text must not be null, empty, or whitespace.", "text")
-        };
+        var memoryService = new ToolTestMemoryService();
         var tool = new EngramMcp.Tools.Tools.RememberShort.McpTool(memoryService);
 
         var response = await tool.ExecuteAsync("");
 
-        response.Is("Memory text must not be null, empty, or whitespace. (Parameter 'text')");
+        response.Is("Memory text must not be null, empty, or whitespace.");
+        memoryService.RememberedText.IsNull();
     }
 }

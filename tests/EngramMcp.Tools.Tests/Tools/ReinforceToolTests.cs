@@ -1,3 +1,5 @@
+using EngramMcp.Tools.Memory;
+using EngramMcp.Tools.Memory.Retention;
 using Is.Assertions;
 using Xunit;
 
@@ -5,6 +7,18 @@ namespace EngramMcp.Tools.Tests.Tools;
 
 public sealed class ReinforceToolTests
 {
+    private sealed class RejectingMemoryService(string errorMessage) : IMemoryService
+    {
+        public Task<IReadOnlyList<RecallMemory>> RecallAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<RecallMemory>>([]);
+
+        public Task RememberAsync(RetentionTier retentionTier, string text, CancellationToken cancellationToken = default) =>
+            Task.CompletedTask;
+
+        public Task<string?> ReinforceAsync(IReadOnlyList<string> memoryIds, CancellationToken cancellationToken = default) =>
+            Task.FromResult<string?>(errorMessage);
+    }
+
     [Fact]
     public async Task ExecuteAsync_reinforces_requested_memories()
     {
@@ -23,14 +37,10 @@ public sealed class ReinforceToolTests
     [Fact]
     public async Task ExecuteAsync_returns_validation_message_for_invalid_input()
     {
-        var memoryService = new ToolTestMemoryService
-        {
-            ReinforceException = new ArgumentException("At least one memory id is required.", "memoryIds")
-        };
-        var tool = new EngramMcp.Tools.Tools.Reinforce.McpTool(memoryService);
+        var tool = new EngramMcp.Tools.Tools.Reinforce.McpTool(new RejectingMemoryService("At least one memory id is required."));
 
         var response = await tool.ExecuteAsync([]);
 
-        response.Is("At least one memory id is required. (Parameter 'memoryIds')");
+        response.Is("At least one memory id is required.");
     }
 }

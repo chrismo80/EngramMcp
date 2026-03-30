@@ -70,12 +70,10 @@ public sealed class MemoryService(
         }
     }
 
-    public async Task ReinforceAsync(IReadOnlyList<string> memoryIds, CancellationToken cancellationToken = default)
+    public async Task<string?> ReinforceAsync(IReadOnlyList<string> memoryIds, CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(memoryIds);
-
-        if (memoryIds.Count == 0)
-            throw new ArgumentException("At least one memory id is required.", nameof(memoryIds));
+        if (memoryIds is null || memoryIds.Count == 0)
+            return "At least one memory id is required.";
 
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
 
@@ -87,7 +85,7 @@ public sealed class MemoryService(
             foreach (var memoryId in memoryIds)
             {
                 if (string.IsNullOrWhiteSpace(memoryId) || !memoriesById.ContainsKey(memoryId))
-                    throw new KeyNotFoundException($"Unknown memory '{memoryId}'.");
+                    return $"Unknown memory '{memoryId}'.";
             }
 
             var updatedAnyRetention = false;
@@ -106,6 +104,8 @@ public sealed class MemoryService(
 
             if (updatedAnyRetention)
                 await memoryStore.SaveAsync(document, cancellationToken).ConfigureAwait(false);
+
+            return null;
         }
         finally
         {

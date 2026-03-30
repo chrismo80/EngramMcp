@@ -58,10 +58,9 @@ public sealed class MemoryServiceTests
         });
         var service = CreateService(store);
 
-        var exception = await Record.ExceptionAsync(() => service.ReinforceAsync(["known", "missing"]));
+        var errorMessage = await service.ReinforceAsync(["known", "missing"]);
 
-        exception.IsNotNull();
-        exception.Is<KeyNotFoundException>();
+        errorMessage.Is("Unknown memory 'missing'.");
         store.Document.Memories[0].Retention.Is(10d);
     }
 

@@ -4,17 +4,26 @@ internal static class MemoryText
 {
     public const int MaxLength = 1000;
 
-    public static string Validate(string? text)
+    public static string? GetValidationError(string? text)
     {
         if (string.IsNullOrWhiteSpace(text))
-            throw new ArgumentException("Memory text must not be null, empty, or whitespace.", nameof(text));
+            return "Memory text must not be null, empty, or whitespace.";
 
         if (text.Contains('\r') || text.Contains('\n'))
-            throw new ArgumentException("Memory text must be a single line without carriage returns or line feeds.", nameof(text));
+            return "Memory text must be a single line without carriage returns or line feeds.";
 
-        if (text.Length > MaxLength)
-            throw new ArgumentException($"Memory text must be {MaxLength} characters or fewer.", nameof(text));
+        return text.Length > MaxLength
+            ? $"Memory text must be {MaxLength} characters or fewer."
+            : null;
+    }
 
-        return text;
+    public static string Validate(string? text)
+    {
+        var validationError = GetValidationError(text);
+
+        if (validationError is not null)
+            throw new ArgumentException(validationError, nameof(text));
+
+        return text!;
     }
 }

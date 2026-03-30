@@ -14,14 +14,12 @@ public sealed class McpTool(IMemoryService memoryService) : Tool
         string text,
         CancellationToken cancellationToken = default)
     {
-        try
-        {
-            await memoryService.RememberAsync(RetentionTier.Long, text, cancellationToken).ConfigureAwait(false);
-            return "Stored long-term memory.";
-        }
-        catch (ArgumentException exception)
-        {
-            return exception.Message;
-        }
+        var validationError = MemoryText.GetValidationError(text);
+
+        if (validationError is not null)
+            return validationError;
+
+        await memoryService.RememberAsync(RetentionTier.Long, text, cancellationToken).ConfigureAwait(false);
+        return "Stored long-term memory.";
     }
 }
