@@ -4,7 +4,7 @@ using ModelContextProtocol.Server;
 
 namespace EngramMcp.Tools.Tools.Reinforce;
 
-public sealed class McpTool(IMemoryService memoryService) : Tool
+public sealed class ReinforceTool(IMemoryService memoryService) : Tool
 {
     [McpServerTool(Name = "reinforce", Title = "Reinforce Memories")]
     [Description("Strengthen recalled memories that materially influenced your work in the current session. Do not reinforce memories merely because they were present.")]
@@ -13,7 +13,7 @@ public sealed class McpTool(IMemoryService memoryService) : Tool
         IReadOnlyList<string> memoryIds,
         CancellationToken cancellationToken = default)
     {
-        var errorMessage = await memoryService.ReinforceAsync(memoryIds, cancellationToken).ConfigureAwait(false);
-        return errorMessage ?? "Reinforced memories.";
+        var result = await memoryService.ReinforceAsync(memoryIds, cancellationToken).ConfigureAwait(false);
+        return result.Rejection ?? "Reinforced memories.";
     }
 }

@@ -25,7 +25,7 @@ public sealed record PersistedMemory
             if (double.IsNaN(value) || double.IsInfinity(value) || value < 0)
                 throw new ArgumentOutOfRangeException(nameof(value), "Retention must be a finite non-negative number.");
 
-            field = value;
+            field = Math.Round(value, 1);
         }
     }
 

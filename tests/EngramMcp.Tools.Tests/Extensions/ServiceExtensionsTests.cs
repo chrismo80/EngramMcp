@@ -7,8 +7,17 @@ namespace EngramMcp.Tools.Tests.Extensions;
 public sealed class ServiceExtensionsTests
 {
     [Fact]
-    public void GetTools_returns_migrated_tools()
+    public void GetTools_returns_the_complete_tool_surface()
     {
-        ServiceExtensions.GetTools().Any().IsTrue();
+        ServiceExtensions.GetTools()
+            .Select(type => type.Name)
+            .OrderBy(name => name, StringComparer.Ordinal)
+            .Is([
+                "RecallTool",
+                "ReinforceTool",
+                "RememberLongTool",
+                "RememberMediumTool",
+                "RememberShortTool"
+            ]);
     }
 }

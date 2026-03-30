@@ -17,7 +17,7 @@ public static class ServiceExtensions
             .AddSingleton<IRetentionPolicy, DefaultRetentionPolicy>()
             .AddSingleton<SessionReinforcementTracker>()
             .AddSingleton<EngramMcp.Tools.Memory.Storage.IMemoryStore>(_ => new EngramMcp.Tools.Memory.Storage.JsonMemoryStore(memoryFilePath))
-            .AddSingleton<IMemoryService, MemoryService>()
+            .AddSingleton<IMemoryService, CachedMemoryService>()
             .AddImplementations<Tool>();
 
         private IServiceCollection AddImplementations<T>()

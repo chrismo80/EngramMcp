@@ -5,7 +5,7 @@ using ModelContextProtocol.Server;
 
 namespace EngramMcp.Tools.Tools.RememberMedium;
 
-public sealed class McpTool(IMemoryService memoryService) : Tool
+public sealed class RememberMediumTool(IMemoryService memoryService) : Tool
 {
     [McpServerTool(Name = "remember_medium", Title = "Remember Medium")]
     [Description("Store information that is useful across sessions but may change over time. Use for evolving preferences, personal events, decisions made, lessons learned.")]
@@ -14,7 +14,7 @@ public sealed class McpTool(IMemoryService memoryService) : Tool
         string text,
         CancellationToken cancellationToken = default)
     {
-        var error = await memoryService.RememberAsync(RetentionTier.Medium, text, cancellationToken).ConfigureAwait(false);
-        return error ?? "Stored medium-term memory.";
+        var result = await memoryService.RememberAsync(RetentionTier.Medium, text, cancellationToken).ConfigureAwait(false);
+        return result.Rejection ?? "Stored medium-term memory.";
     }
 }

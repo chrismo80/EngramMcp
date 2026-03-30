@@ -4,13 +4,13 @@ using ModelContextProtocol.Server;
 
 namespace EngramMcp.Tools.Tools.Recall;
 
-public sealed class McpTool(IMemoryService memoryService) : Tool
+public sealed class RecallTool(IMemoryService memoryService) : Tool
 {
     [McpServerTool(Name = "recall", Title = "Recall Memories")]
     [Description("Load the current memory set. Useful at the start of a session.")]
-    public async Task<Response> ExecuteAsync(CancellationToken cancellationToken = default)
+    public async Task<RecallResponse> ExecuteAsync(CancellationToken cancellationToken = default)
     {
         var memories = await memoryService.RecallAsync(cancellationToken).ConfigureAwait(false);
-        return new Response(memories);
+        return new RecallResponse(memories);
     }
 }

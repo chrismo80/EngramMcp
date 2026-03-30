@@ -13,7 +13,7 @@ public sealed class RecallToolTests
         {
             RecallResult = [new RecallMemory("id-1", "Remember this")]
         };
-        var tool = new EngramMcp.Tools.Tools.Recall.McpTool(memoryService);
+        var tool = new EngramMcp.Tools.Tools.Recall.RecallTool(memoryService);
 
         var response = await tool.ExecuteAsync();
 

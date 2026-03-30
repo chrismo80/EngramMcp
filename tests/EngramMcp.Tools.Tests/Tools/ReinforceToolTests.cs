@@ -12,18 +12,18 @@ public sealed class ReinforceToolTests
         public Task<IReadOnlyList<RecallMemory>> RecallAsync(CancellationToken cancellationToken = default) =>
             Task.FromResult<IReadOnlyList<RecallMemory>>([]);
 
-        public Task<string?> RememberAsync(RetentionTier retentionTier, string text, CancellationToken cancellationToken = default) =>
-            Task.FromResult<string?>(null);
+        public Task<MemoryChangeResult> RememberAsync(RetentionTier retentionTier, string text, CancellationToken cancellationToken = default) =>
+            Task.FromResult(MemoryChangeResult.Success());
 
-        public Task<string?> ReinforceAsync(IReadOnlyList<string> memoryIds, CancellationToken cancellationToken = default) =>
-            Task.FromResult<string?>(errorMessage);
+        public Task<MemoryChangeResult> ReinforceAsync(IReadOnlyList<string> memoryIds, CancellationToken cancellationToken = default) =>
+            Task.FromResult(MemoryChangeResult.Reject(errorMessage));
     }
 
     [Fact]
     public async Task ExecuteAsync_reinforces_requested_memories()
     {
         var memoryService = new ToolTestMemoryService();
-        var tool = new EngramMcp.Tools.Tools.Reinforce.McpTool(memoryService);
+        var tool = new EngramMcp.Tools.Tools.Reinforce.ReinforceTool(memoryService);
 
         var response = await tool.ExecuteAsync(["id-1", "id-2"]);
 
@@ -37,7 +37,7 @@ public sealed class ReinforceToolTests
     [Fact]
     public async Task ExecuteAsync_returns_validation_message_for_invalid_input()
     {
-        var tool = new EngramMcp.Tools.Tools.Reinforce.McpTool(new RejectingMemoryService("At least one memory id is required."));
+        var tool = new EngramMcp.Tools.Tools.Reinforce.ReinforceTool(new RejectingMemoryService("At least one memory id is required."));
 
         var response = await tool.ExecuteAsync([]);
 

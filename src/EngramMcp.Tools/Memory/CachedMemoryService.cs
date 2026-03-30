@@ -5,7 +5,7 @@ using EngramMcp.Tools.Memory.Storage;
 
 namespace EngramMcp.Tools.Memory;
 
-public sealed class MemoryService(
+public sealed class CachedMemoryService(
     Storage.IMemoryStore memoryStore,
     IMemoryIdGenerator memoryIdGenerator,
     IRetentionPolicy retentionPolicy,
@@ -43,10 +43,10 @@ public sealed class MemoryService(
         }
     }
 
-    public async Task<string?> RememberAsync(RetentionTier retentionTier, string text, CancellationToken cancellationToken = default)
+    public async Task<MemoryChangeResult> RememberAsync(RetentionTier retentionTier, string text, CancellationToken cancellationToken = default)
     {
         if (MemoryText.GetValidationError(text) is { } error)
-            return error;
+            return MemoryChangeResult.Reject(error);
 
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
 
@@ -64,7 +64,7 @@ public sealed class MemoryService(
             document.Memories.Add(memory);
 
             await memoryStore.SaveAsync(document, cancellationToken).ConfigureAwait(false);
-            return null;
+            return MemoryChangeResult.Success();
         }
         finally
         {
@@ -72,10 +72,10 @@ public sealed class MemoryService(
         }
     }
 
-    public async Task<string?> ReinforceAsync(IReadOnlyList<string> memoryIds, CancellationToken cancellationToken = default)
+    public async Task<MemoryChangeResult> ReinforceAsync(IReadOnlyList<string> memoryIds, CancellationToken cancellationToken = default)
     {
         if (memoryIds is null || memoryIds.Count == 0)
-            return "At least one memory id is required.";
+            return MemoryChangeResult.Reject("At least one memory id is required.");
 
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
 
@@ -87,7 +87,7 @@ public sealed class MemoryService(
             foreach (var memoryId in memoryIds)
             {
                 if (string.IsNullOrWhiteSpace(memoryId) || !memoriesById.ContainsKey(memoryId))
-                    return $"Unknown memory '{memoryId}'.";
+                    return MemoryChangeResult.Reject($"Unknown memory '{memoryId}'.");
             }
 
             var updatedAnyRetention = false;
@@ -107,7 +107,7 @@ public sealed class MemoryService(
             if (updatedAnyRetention)
                 await memoryStore.SaveAsync(document, cancellationToken).ConfigureAwait(false);
 
-            return null;
+            return MemoryChangeResult.Success();
         }
         finally
         {

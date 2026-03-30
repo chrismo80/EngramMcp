@@ -38,9 +38,10 @@ public sealed class MemoryServiceTests
         var store = new InMemoryMemoryStore(new PersistedMemoryDocument());
         var service = CreateService(store, new FixedMemoryIdGenerator("260329142501"));
 
-        var error = await service.RememberAsync(RetentionTier.Medium, "Remember this");
+        var result = await service.RememberAsync(RetentionTier.Medium, "Remember this");
 
-        error.IsNull();
+        result.Succeeded.IsTrue();
+        result.Rejection.IsNull();
         store.Document.Memories.Count.Is(1);
         store.Document.Memories[0].Id.Is("260329142501");
         store.Document.Memories[0].Text.Is("Remember this");
@@ -53,10 +54,32 @@ public sealed class MemoryServiceTests
         var store = new InMemoryMemoryStore(new PersistedMemoryDocument());
         var service = CreateService(store);
 
-        var error = await service.RememberAsync(RetentionTier.Short, "");
+        var result = await service.RememberAsync(RetentionTier.Short, "");
 
-        error.Is("Memory text must not be null, empty, or whitespace.");
+        result.Succeeded.IsFalse();
+        result.Rejection.Is("Memory text must not be null, empty, or whitespace.");
         store.Document.Memories.IsEmpty();
+    }
+
+    [Fact]
+    public async Task RecallAsync_keeps_the_loaded_document_for_the_service_lifetime()
+    {
+        var store = new InMemoryMemoryStore(new PersistedMemoryDocument());
+        var service = CreateService(store);
+
+        (await service.RecallAsync()).IsEmpty();
+
+        store.Replace(new PersistedMemoryDocument
+        {
+            Memories =
+            [
+                new PersistedMemory { Id = "id-1", Text = "Updated outside the service", Retention = 10 }
+            ]
+        });
+
+        var memories = await service.RecallAsync();
+
+        memories.IsEmpty();
     }
 
     [Fact]
@@ -71,9 +94,10 @@ public sealed class MemoryServiceTests
         });
         var service = CreateService(store);
 
-        var errorMessage = await service.ReinforceAsync(["known", "missing"]);
+        var result = await service.ReinforceAsync(["known", "missing"]);
 
-        errorMessage.Is("Unknown memory 'missing'.");
+        result.Succeeded.IsFalse();
+        result.Rejection.Is("Unknown memory 'missing'.");
         store.Document.Memories[0].Retention.Is(10d);
     }
 
@@ -121,7 +145,7 @@ public sealed class MemoryServiceTests
         }
 
         store.Document.Memories.Select(memory => memory.Id).Is(["short-id"]);
-        Round(store.Document.Memories[0].Retention).Is(1.34d);
+        store.Document.Memories[0].Retention.Is(1.3d);
     }
 
     [Fact]
@@ -152,8 +176,8 @@ public sealed class MemoryServiceTests
 
         mediumMemory.Text.Is("Useful preference");
         longMemory.Text.Is("Stable identity fact");
-        Round(mediumMemory.Retention).Is(7.65d);
-        Round(longMemory.Retention).Is(109.9d);
+        mediumMemory.Retention.Is(7.6d);
+        longMemory.Retention.Is(109.8d);
     }
 
     [Fact]
@@ -173,9 +197,9 @@ public sealed class MemoryServiceTests
         memories.Single().Is(new RecallMemory("id-1", "Known memory"));
     }
 
-    private static MemoryService CreateService(InMemoryMemoryStore store, IMemoryIdGenerator? memoryIdGenerator = null)
+    private static CachedMemoryService CreateService(InMemoryMemoryStore store, IMemoryIdGenerator? memoryIdGenerator = null)
     {
-        return new MemoryService(
+        return new CachedMemoryService(
             store,
             memoryIdGenerator ?? new FixedMemoryIdGenerator("generated-id"),
             new DefaultRetentionPolicy(),
@@ -185,6 +209,8 @@ public sealed class MemoryServiceTests
     private sealed class InMemoryMemoryStore(PersistedMemoryDocument document) : EngramMcp.Tools.Memory.Storage.IMemoryStore
     {
         public PersistedMemoryDocument Document { get; private set; } = document;
+
+        public void Replace(PersistedMemoryDocument document) => Document = document;
 
         public Task EnsureInitializedAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
 
@@ -201,6 +227,4 @@ public sealed class MemoryServiceTests
     {
         public string CreateId(IReadOnlyCollection<string> existingIds, DateTime now) => id;
     }
-
-    private static double Round(double value) => Math.Round(value, 2);
 }
