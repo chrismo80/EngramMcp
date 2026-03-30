@@ -14,9 +14,26 @@ public sealed class RecallToolTests : ToolTests<RecallTool>
 
         var response = await Sut.ExecuteAsync();
 
-        response.Count.Is(1);
+        response.ReturnedCount.Is(1);
+        response.TotalCount.Is(1);
         response.Memories.Count.Is(1);
         response.Memories[0].Id.Is("id-1");
         response.Memories[0].Text.Is("Remember this");
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_caps_returned_memories_at_100()
+    {
+        MemoryService.RecallResult = Enumerable.Range(1, 101)
+            .Select(index => new RecallMemory($"id-{index}", $"Memory {index}"))
+            .ToArray();
+
+        var response = await Sut.ExecuteAsync();
+
+        response.ReturnedCount.Is(100);
+        response.TotalCount.Is(101);
+        response.Memories.Count.Is(100);
+        response.Memories[0].Id.Is("id-1");
+        response.Memories[99].Id.Is("id-100");
     }
 }
