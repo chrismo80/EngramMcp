@@ -25,7 +25,7 @@
         <PackageId>EngramMcp</PackageId>
         <PackAsTool>true</PackAsTool>
         <ToolCommandName>EngramMcp</ToolCommandName>
-        <Version>0.6.4</Version>
+        <Version>0.7.0</Version>
         <Authors>chrismo80</Authors>
         <Description>MCP server for persistant memory.</Description>
         <PackageLicenseExpression>MIT</PackageLicenseExpression>
