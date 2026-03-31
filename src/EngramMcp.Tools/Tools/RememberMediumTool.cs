@@ -1,6 +1,5 @@
 using System.ComponentModel;
 using EngramMcp.Tools.Memory;
-using EngramMcp.Tools.Memory.Retention;
 using ModelContextProtocol.Server;
 
 namespace EngramMcp.Tools.Tools;

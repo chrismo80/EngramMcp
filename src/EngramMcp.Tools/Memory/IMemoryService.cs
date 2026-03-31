@@ -1,5 +1,3 @@
-using EngramMcp.Tools.Memory.Retention;
-
 namespace EngramMcp.Tools.Memory;
 
 public interface IMemoryService

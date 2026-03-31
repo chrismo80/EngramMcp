@@ -1,5 +1,4 @@
 using EngramMcp.Tools.Memory;
-using EngramMcp.Tools.Memory.Retention;
 
 namespace EngramMcp.Tools.Tests;
 

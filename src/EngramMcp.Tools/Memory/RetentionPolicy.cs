@@ -1,6 +1,13 @@
-namespace EngramMcp.Tools.Memory.Retention;
+namespace EngramMcp.Tools.Memory;
 
-public sealed class DefaultRetentionPolicy : IRetentionPolicy
+public enum RetentionTier
+{
+    Short,
+    Medium,
+    Long
+}
+
+public sealed class RetentionPolicy
 {
     public double CreateInitialRetention(RetentionTier retentionTier) => retentionTier switch
     {

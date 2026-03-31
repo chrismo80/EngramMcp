@@ -1,4 +1,4 @@
-namespace EngramMcp.Tools.Memory.Session;
+namespace EngramMcp.Tools.Memory;
 
 public sealed class SessionReinforcementTracker
 {

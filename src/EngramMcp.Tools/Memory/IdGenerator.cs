@@ -1,6 +1,6 @@
-namespace EngramMcp.Tools.Memory.Identity;
+namespace EngramMcp.Tools.Memory;
 
-public sealed class TimestampMemoryIdGenerator : IMemoryIdGenerator
+public sealed class IdGenerator
 {
     private static readonly Lock Sync = new ();
     private static long _lastTimestamp;

@@ -1,14 +1,11 @@
-using EngramMcp.Tools.Memory.Identity;
-using EngramMcp.Tools.Memory.Retention;
-using EngramMcp.Tools.Memory.Session;
 using EngramMcp.Tools.Memory.Storage;
 
 namespace EngramMcp.Tools.Memory;
 
 public sealed class CachedMemoryService(
     IMemoryStore memoryStore,
-    IMemoryIdGenerator memoryIdGenerator,
-    IRetentionPolicy retentionPolicy,
+    IdGenerator memoryIdGenerator,
+    RetentionPolicy retentionPolicy,
     SessionReinforcementTracker reinforcementTracker) : IMemoryService
 {
     private readonly SemaphoreSlim _gate = new(1, 1);
