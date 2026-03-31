@@ -33,13 +33,14 @@ public sealed class MemoryServiceTests
     public async Task RememberAsync_creates_memory_with_tier_specific_initial_retention()
     {
         var store = new InMemoryMemoryStore(new PersistedMemoryDocument());
-        var service = CreateService(store, new IdGenerator());
+        var service = CreateService(store);
 
         var result = await service.RememberAsync(RetentionTier.Medium, "Remember this");
 
         result.Succeeded.IsTrue();
         result.Rejection.IsNull();
         store.Document.Memories.Count.Is(1);
+        store.Document.Memories[0].Text.Is("Remember this");
         store.Document.Memories[0].Retention.Is(25d);
     }
 
@@ -118,7 +119,7 @@ public sealed class MemoryServiceTests
     public async Task Short_memory_without_reinforcement_disappears_after_five_recalls()
     {
         var store = new InMemoryMemoryStore(new PersistedMemoryDocument());
-        await CreateService(store, new IdGenerator()).RememberAsync(RetentionTier.Short, "Temporary note");
+        await RememberMemoryAsync(store, RetentionTier.Short, "Temporary note");
 
         for (var session = 1; session <= 5; session++)
             await CreateService(store).RecallAsync();
@@ -130,25 +131,33 @@ public sealed class MemoryServiceTests
     public async Task Frequently_reinforced_short_memory_can_survive_a_few_sessions()
     {
         var store = new InMemoryMemoryStore(new PersistedMemoryDocument());
-        await CreateService(store, new IdGenerator()).RememberAsync(RetentionTier.Short, "Active working note");
+        var shortId = await RememberMemoryAsync(store, RetentionTier.Short, "Active working note");
 
         for (var session = 1; session <= 5; session++)
         {
             var service = CreateService(store);
-            
+
             await service.RecallAsync();
-            await service.ReinforceAsync(["short-id"]);
+            var reinforceResult = await service.ReinforceAsync([shortId]);
+
+            reinforceResult.Succeeded.IsTrue();
+            reinforceResult.Rejection.IsNull();
         }
+
+        store.Document.Memories.Count.Is(1);
+        store.Document.Memories[0].Id.Is(shortId);
+        store.Document.Memories[0].Text.Is("Active working note");
+        store.Document.Memories[0].Retention.Is(1.3d);
     }
 
     [Fact]
-    public async Task Retention_model_example_shows_how_memories_diverge_over_thirty_sessions()
+    public async Task Retention_model_example_shows_how_memories_diverge_over_twenty_sessions()
     {
         var store = new InMemoryMemoryStore(new PersistedMemoryDocument());
 
-        await CreateService(store, new IdGenerator()).RememberAsync(RetentionTier.Short, "Ephemeral detail");
-        await CreateService(store, new IdGenerator()).RememberAsync(RetentionTier.Medium, "Useful preference");
-        await CreateService(store, new IdGenerator()).RememberAsync(RetentionTier.Long, "Stable identity fact");
+        var shortId = await RememberMemoryAsync(store, RetentionTier.Short, "Ephemeral detail");
+        var mediumId = await RememberMemoryAsync(store, RetentionTier.Medium, "Useful preference");
+        var longId = await RememberMemoryAsync(store, RetentionTier.Long, "Stable identity fact");
 
         for (var session = 1; session <= 20; session++)
         {
@@ -156,20 +165,32 @@ public sealed class MemoryServiceTests
             await service.RecallAsync();
 
             if (session is 10 or 15)
-                await service.ReinforceAsync(["medium-id"]);
+            {
+                var reinforceMediumResult = await service.ReinforceAsync([mediumId]);
+
+                reinforceMediumResult.Succeeded.IsTrue();
+                reinforceMediumResult.Rejection.IsNull();
+            }
 
             if (session is 5 or 10 or 15)
-                await service.ReinforceAsync(["long-id"]);
+            {
+                var reinforceLongResult = await service.ReinforceAsync([longId]);
+
+                reinforceLongResult.Succeeded.IsTrue();
+                reinforceLongResult.Rejection.IsNull();
+            }
         }
 
-        var mediumMemory = store.Document.Memories.First();
-        var longMemory = store.Document.Memories.Last();
+        store.Document.Memories.Count.Is(2);
+        store.Document.Memories.Any(memory => memory.Id == shortId).IsFalse();
 
-        
+        var mediumMemory = store.Document.Memories.Single(memory => memory.Id == mediumId);
+        var longMemory = store.Document.Memories.Single(memory => memory.Id == longId);
+
         mediumMemory.Text.Is("Useful preference");
         longMemory.Text.Is("Stable identity fact");
-        mediumMemory.Retention.Is(5d);
-        longMemory.Retention.Is(80d);
+        mediumMemory.Retention.Is(7.6d);
+        longMemory.Retention.Is(109.8d);
     }
 
     [Fact]
@@ -196,6 +217,17 @@ public sealed class MemoryServiceTests
             memoryIdGenerator ?? new IdGenerator(),
             new RetentionPolicy(),
             new SessionReinforcementTracker());
+    }
+
+    private static async Task<string> RememberMemoryAsync(InMemoryMemoryStore store, RetentionTier retentionTier, string text)
+    {
+        var memoryCount = store.Document.Memories.Count;
+        var result = await CreateService(store).RememberAsync(retentionTier, text);
+
+        result.Succeeded.IsTrue();
+        result.Rejection.IsNull();
+
+        return store.Document.Memories[memoryCount].Id;
     }
 
     private sealed class InMemoryMemoryStore(PersistedMemoryDocument document) : EngramMcp.Tools.Memory.Storage.IMemoryStore

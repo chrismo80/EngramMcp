@@ -11,7 +11,7 @@ public sealed class RecallTool(IMemoryService memoryService) : Tool
     private const int MaximumReturnedMemoryCount = 100;
 
     [McpServerTool(Name = "recall", Title = "Recall Memories")]
-    [Description("Load the current memory set. Useful at the start of a session.")]
+    [Description("Load up to the 100 strongest current memories. Useful at the start of a session.")]
     public async Task<RecallResponse> ExecuteAsync(CancellationToken cancellationToken = default)
     {
         var memories = await memoryService.RecallAsync(cancellationToken).ConfigureAwait(false);
