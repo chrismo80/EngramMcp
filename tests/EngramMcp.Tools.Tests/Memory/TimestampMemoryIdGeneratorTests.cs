@@ -9,9 +9,8 @@ public sealed class TimestampMemoryIdGeneratorTests
     [Fact]
     public void GetUniqueId_returns_unique_ids_for_consecutive_calls()
     {
-        var generator = new IdGenerator();
         var ids = Enumerable.Range(0, 100)
-            .Select(_ => generator.GetUniqueId())
+            .Select(_ => IdGenerator.GetUniqueId())
             .ToArray();
 
         ids.Distinct(StringComparer.Ordinal).Count().Is(100);
@@ -20,9 +19,8 @@ public sealed class TimestampMemoryIdGeneratorTests
     [Fact]
     public async Task GetUniqueId_returns_unique_ids_for_parallel_calls()
     {
-        var generator = new IdGenerator();
         var tasks = Enumerable.Range(0, 100)
-            .Select(_ => Task.Run(generator.GetUniqueId))
+            .Select(_ => Task.Run(IdGenerator.GetUniqueId))
             .ToArray();
 
         var ids = await Task.WhenAll(tasks);

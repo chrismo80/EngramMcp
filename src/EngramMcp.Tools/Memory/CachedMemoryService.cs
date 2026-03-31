@@ -4,7 +4,6 @@ namespace EngramMcp.Tools.Memory;
 
 public sealed class CachedMemoryService(
     IMemoryStore memoryStore,
-    IdGenerator memoryIdGenerator,
     RetentionPolicy retentionPolicy,
     Tracker tracker) : IMemoryService
 {
@@ -43,7 +42,7 @@ public sealed class CachedMemoryService(
             var document = await LoadDocumentAsync(cancellationToken).ConfigureAwait(false);
             var memory = new PersistedMemory
             {
-                Id = memoryIdGenerator.GetUniqueId(),
+                Id = IdGenerator.GetUniqueId(),
                 Text = text,
                 Retention = retentionPolicy.CreateInitialRetention(retentionTier)
             };

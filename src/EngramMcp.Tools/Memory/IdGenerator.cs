@@ -1,12 +1,12 @@
 namespace EngramMcp.Tools.Memory;
 
-public sealed class IdGenerator
+public static class IdGenerator
 {
     private static readonly Lock Sync = new ();
     private static long _lastTimestamp;
     private const string Alphabet = "0123456789abcdefghijklmnopqrstuvwxyz";
 
-    public string GetUniqueId()
+    public static string GetUniqueId()
     {
         using (Sync.EnterScope())
         {

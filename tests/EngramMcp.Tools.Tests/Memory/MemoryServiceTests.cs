@@ -262,11 +262,10 @@ public sealed class MemoryServiceTests
         memories.Single().Is(new RecallMemory("id-1", "Known memory"));
     }
 
-    private static CachedMemoryService CreateService(InMemoryMemoryStore store, IdGenerator? memoryIdGenerator = null)
+    private static CachedMemoryService CreateService(InMemoryMemoryStore store)
     {
         return new CachedMemoryService(
             store,
-            memoryIdGenerator ?? new IdGenerator(),
             new RetentionPolicy(),
             new Tracker());
     }
