@@ -8,7 +8,7 @@ public sealed record RecallResponse(IReadOnlyList<RecallMemory> Memories);
 
 public sealed class RecallTool(MemoryService memories) : Tool
 {
-    private const int MaximumReturnedMemoryCount = 100;
+    private const int MaximumReturnedMemoryCount = 50;
 
     [McpServerTool(Name = "recall", Title = "Recall Memories")]
     [Description("Load up to the 100 strongest current memories. Useful at the start of a session.")]

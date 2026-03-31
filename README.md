@@ -4,13 +4,13 @@
 
 > EngramMcp gives agents a small persistent memory that keeps what continues to matter and lets the rest fade away.
 
-A Model Context Protocol server for persistent agent memory.
+Persistent memory for Model Context Protocol agents.
 
 It is built for continuity across sessions.
-The goal is not perfect recall.
-The goal is that an agent comes back with the right context: preferences, durable facts, useful lessons, and work state worth carrying forward.
+Not perfect recall. Not a transcript.
+Just the context an agent should still have next time: preferences, durable facts, useful lessons, and work state worth carrying forward.
 
-From the user's side, this should feel like the agent remembers important things without acting like a full archive.
+For the user, that should feel simple: the agent remembers what matters without pretending to remember everything.
 
 ## Get It as a .NET Tool
 
@@ -50,9 +50,9 @@ Example:
 }
 ```
 
-## What It Is
+## What It Is For
 
-EngramMcp is for things like:
+Use EngramMcp for:
 
 - recurring user preferences
 - stable facts worth keeping around
@@ -66,19 +66,19 @@ It is not:
 - a vector store
 - a full conversation archive
 
-The design stays intentionally small.
-There is no search tool and no edit flow.
-Memory is meant to be selective.
+The toolset stays intentionally small.
+No search. No edit flow.
+Memory is meant to stay selective.
 
-## A Typical Session
+## How It Feels in Practice
 
-In daily use, the toolset behaves roughly like this:
+A typical session looks like this:
 
 1. Start with `recall`.
    It brings back the memories still worth carrying into the session.
 
-2. Work with those memories as background context.
-   They should help the agent pick up where it left off or adapt to the user without being reminded every time.
+2. Use those memories as background context.
+   They help the agent pick up where it left off and adapt to the user without being reminded each time.
 
 3. When something new deserves to survive the session, store it with the remember tier that matches its expected lifetime:
    - `remember_short` for near-future continuation
@@ -90,17 +90,17 @@ In daily use, the toolset behaves roughly like this:
 
 5. Memories that stop proving useful gradually fall away.
 
-That is the core experience: not total recall, but continuity shaped by relevance.
+That is the core experience: continuity shaped by relevance, not by accumulation.
 
 ## Tools
 
-| Tool | Use it for |
-|---|---|
-| `recall` | Start of session. Load up to the 100 strongest current memories that are still worth carrying forward. |
-| `remember_short` | Recent progress, temporary working context, checkpoints, resume notes. |
-| `remember_medium` | Evolving preferences, lessons learned, recurring context. |
-| `remember_long` | Stable facts, durable constraints, relationship context. |
-| `reinforce` | Strengthen recalled memories that materially influenced the current session. |
+| Tool | Use it for                                                                                            |
+|---|-------------------------------------------------------------------------------------------------------|
+| `recall` | Start of session. Load up to the 50 strongest current memories that are still worth carrying forward. |
+| `remember_short` | Recent progress, temporary working context, checkpoints, resume notes.                                |
+| `remember_medium` | Evolving preferences, lessons learned, recurring context.                                             |
+| `remember_long` | Stable facts, durable constraints, relationship context.                                              |
+| `reinforce` | Strengthen recalled memories that materially influenced the current session.                          |
 
 ## Example Recall Response
 
@@ -126,14 +126,15 @@ They are only meant to be passed back to `reinforce`.
 
 ## Prompting Matters
 
-The usefulness of the memory comes as much from the prompt as from the storage.
+These tools work best when the system prompt teaches the agent how to use them well.
 
-A good system prompt tells the agent to:
+A good default is:
 
 - begin each session with `recall`
-- store only what deserves to outlive the current exchange
-- choose the remember tier based on expected lifetime
-- reinforce only memories that materially helped
+- use `remember_short` for work-related context that helps resume progress in future sessions (completed tasks, checkpoints, important findings)
+- use `remember_medium` for personal and work-related information that may evolve over time (preferences, hobbies, working style, favorite tools, music taste)
+- use `remember_long` for personal facts about the user or your relationship that are unlikely to change (name, identity, values, personality, vibe)
+- after completing a task or reaching a meaningful milestone (e.g. a commit), consider using `reinforce` for any recalled memories influenced your reasoning, implementation, or communication
 
-Without that judgment, these tools are just storage.
-With it, they start to feel like memory.
+Without that judgment, this is just storage.
+With it, it starts to feel like memory.
