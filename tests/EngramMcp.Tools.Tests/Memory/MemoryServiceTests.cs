@@ -8,14 +8,14 @@ namespace EngramMcp.Tools.Tests.Memory;
 public sealed class MemoryServiceTests
 {
     [Fact]
-    public async Task RecallAsync_decays_and_deletes_before_returning_memories()
+    public async Task RecallAsync_prunes_deleteable_memories_without_decay()
     {
         var store = new InMemoryMemoryStore(new PersistedMemoryDocument
         {
             Memories =
             [
                 new PersistedMemory { Id = "a", Text = "keep", Retention = 10 },
-                new PersistedMemory { Id = "b", Text = "drop", Retention = 1 }
+                new PersistedMemory { Id = "b", Text = "drop", Retention = 0.9 }
             ]
         });
         var service = CreateService(store);
@@ -26,7 +26,7 @@ public sealed class MemoryServiceTests
         memories[0].Id.Is("a");
         memories[0].Text.Is("keep");
         store.Document.Memories.Count.Is(1);
-        store.Document.Memories[0].Retention.Is(9d);
+        store.Document.Memories[0].Retention.Is(10d);
     }
 
     [Fact]
@@ -79,7 +79,7 @@ public sealed class MemoryServiceTests
     }
 
     [Fact]
-    public async Task ReinforceAsync_rejects_unknown_ids_atomically()
+    public async Task ReinforceAsync_rejects_unknown_ids_atomically_without_consuming_cycle_weakening()
     {
         var store = new InMemoryMemoryStore(new PersistedMemoryDocument
         {
@@ -90,15 +90,59 @@ public sealed class MemoryServiceTests
         });
         var service = CreateService(store);
 
-        var result = await service.ReinforceAsync(["known", "missing"]);
+        var rejected = await service.ReinforceAsync(["known", "missing"]);
+        var accepted = await service.ReinforceAsync(["known"]);
 
-        result.Succeeded.IsFalse();
-        result.Rejection.Is("Unknown memory 'missing'.");
-        store.Document.Memories[0].Retention.Is(10d);
+        rejected.Succeeded.IsFalse();
+        rejected.Rejection.Is("Unknown memory 'missing'.");
+        accepted.Succeeded.IsTrue();
+        accepted.Rejection.IsNull();
+        store.Document.Memories[0].Retention.Is(9.9d);
     }
 
     [Fact]
-    public async Task ReinforceAsync_ignores_second_reinforcement_in_same_session()
+    public async Task ReinforceAsync_first_successful_call_in_cycle_weakens_all_memories_once_and_strengthens_selected_ids()
+    {
+        var store = new InMemoryMemoryStore(new PersistedMemoryDocument
+        {
+            Memories =
+            [
+                new PersistedMemory { Id = "a", Text = "Selected", Retention = 10 },
+                new PersistedMemory { Id = "b", Text = "Other", Retention = 7 }
+            ]
+        });
+        var service = CreateService(store);
+
+        var result = await service.ReinforceAsync(["a"]);
+
+        result.Succeeded.IsTrue();
+        result.Rejection.IsNull();
+        store.Document.Memories.Single(memory => memory.Id == "a").Retention.Is(9.9d);
+        store.Document.Memories.Single(memory => memory.Id == "b").Retention.Is(6d);
+    }
+
+    [Fact]
+    public async Task ReinforceAsync_second_successful_call_in_same_cycle_does_not_weaken_again()
+    {
+        var store = new InMemoryMemoryStore(new PersistedMemoryDocument
+        {
+            Memories =
+            [
+                new PersistedMemory { Id = "a", Text = "First", Retention = 10 },
+                new PersistedMemory { Id = "b", Text = "Second", Retention = 10 }
+            ]
+        });
+        var service = CreateService(store);
+
+        await service.ReinforceAsync(["a"]);
+        await service.ReinforceAsync(["b"]);
+
+        store.Document.Memories.Single(memory => memory.Id == "a").Retention.Is(9.9d);
+        store.Document.Memories.Single(memory => memory.Id == "b").Retention.Is(9.9d);
+    }
+
+    [Fact]
+    public async Task ReinforceAsync_ignores_second_reinforcement_of_same_memory_in_same_cycle()
     {
         var store = new InMemoryMemoryStore(new PersistedMemoryDocument
         {
@@ -112,85 +156,93 @@ public sealed class MemoryServiceTests
         await service.ReinforceAsync(["known"]);
         await service.ReinforceAsync(["known"]);
 
-        store.Document.Memories[0].Retention.Is(11d);
+        store.Document.Memories[0].Retention.Is(9.9d);
     }
 
     [Fact]
-    public async Task Short_memory_without_reinforcement_disappears_after_five_recalls()
+    public async Task RecallAsync_resets_reinforcement_cycle()
     {
-        var store = new InMemoryMemoryStore(new PersistedMemoryDocument());
-        await RememberMemoryAsync(store, RetentionTier.Short, "Temporary note");
-
-        for (var session = 1; session <= 5; session++)
-            await CreateService(store).RecallAsync();
-
-        store.Document.Memories.IsEmpty();
-    }
-
-    [Fact]
-    public async Task Frequently_reinforced_short_memory_can_survive_a_few_sessions()
-    {
-        var store = new InMemoryMemoryStore(new PersistedMemoryDocument());
-        var shortId = await RememberMemoryAsync(store, RetentionTier.Short, "Active working note");
-
-        for (var session = 1; session <= 5; session++)
+        var store = new InMemoryMemoryStore(new PersistedMemoryDocument
         {
-            var service = CreateService(store);
+            Memories =
+            [
+                new PersistedMemory { Id = "known", Text = "Known memory", Retention = 10 }
+            ]
+        });
+        var service = CreateService(store);
 
+        await service.ReinforceAsync(["known"]);
+        await service.RecallAsync();
+        await service.ReinforceAsync(["known"]);
+
+        store.Document.Memories[0].Retention.Is(9.8d);
+    }
+
+    [Fact]
+    public async Task Repeated_recalls_without_reinforcement_leave_memory_unchanged()
+    {
+        var store = new InMemoryMemoryStore(new PersistedMemoryDocument
+        {
+            Memories =
+            [
+                new PersistedMemory { Id = "short", Text = "Temporary note", Retention = 5 }
+            ]
+        });
+        var service = CreateService(store);
+
+        for (var recall = 1; recall <= 5; recall++)
             await service.RecallAsync();
-            var reinforceResult = await service.ReinforceAsync([shortId]);
-
-            reinforceResult.Succeeded.IsTrue();
-            reinforceResult.Rejection.IsNull();
-        }
 
         store.Document.Memories.Count.Is(1);
-        store.Document.Memories[0].Id.Is(shortId);
-        store.Document.Memories[0].Text.Is("Active working note");
-        store.Document.Memories[0].Retention.Is(1.3d);
+        store.Document.Memories[0].Retention.Is(5d);
     }
 
     [Fact]
-    public async Task Retention_model_example_shows_how_memories_diverge_over_twenty_sessions()
+    public async Task Memory_weakened_below_delete_threshold_can_still_be_reinforced_before_next_recall()
     {
-        var store = new InMemoryMemoryStore(new PersistedMemoryDocument());
-
-        var shortId = await RememberMemoryAsync(store, RetentionTier.Short, "Ephemeral detail");
-        var mediumId = await RememberMemoryAsync(store, RetentionTier.Medium, "Useful preference");
-        var longId = await RememberMemoryAsync(store, RetentionTier.Long, "Stable identity fact");
-
-        for (var session = 1; session <= 20; session++)
+        var store = new InMemoryMemoryStore(new PersistedMemoryDocument
         {
-            var service = CreateService(store);
-            await service.RecallAsync();
+            Memories =
+            [
+                new PersistedMemory { Id = "a", Text = "Anchor", Retention = 10 },
+                new PersistedMemory { Id = "b", Text = "Recoverable", Retention = 1.9 }
+            ]
+        });
+        var service = CreateService(store);
 
-            if (session is 10 or 15)
-            {
-                var reinforceMediumResult = await service.ReinforceAsync([mediumId]);
+        await service.ReinforceAsync(["a"]);
+        var result = await service.ReinforceAsync(["b"]);
 
-                reinforceMediumResult.Succeeded.IsTrue();
-                reinforceMediumResult.Rejection.IsNull();
-            }
+        result.Succeeded.IsTrue();
+        result.Rejection.IsNull();
+        store.Document.Memories.Count.Is(2);
+        store.Document.Memories.Single(memory => memory.Id == "b").Retention.Is(1d);
+    }
 
-            if (session is 5 or 10 or 15)
-            {
-                var reinforceLongResult = await service.ReinforceAsync([longId]);
+    [Fact]
+    public async Task RecallAsync_prunes_memories_that_remain_below_delete_threshold_after_a_cycle()
+    {
+        var store = new InMemoryMemoryStore(new PersistedMemoryDocument
+        {
+            Memories =
+            [
+                new PersistedMemory { Id = "a", Text = "Anchor", Retention = 10 },
+                new PersistedMemory { Id = "b", Text = "Expired", Retention = 1.2 }
+            ]
+        });
+        var service = CreateService(store);
 
-                reinforceLongResult.Succeeded.IsTrue();
-                reinforceLongResult.Rejection.IsNull();
-            }
-        }
+        await service.ReinforceAsync(["a"]);
 
         store.Document.Memories.Count.Is(2);
-        store.Document.Memories.Any(memory => memory.Id == shortId).IsFalse();
+        store.Document.Memories.Single(memory => memory.Id == "b").Retention.Is(0.2d);
 
-        var mediumMemory = store.Document.Memories.Single(memory => memory.Id == mediumId);
-        var longMemory = store.Document.Memories.Single(memory => memory.Id == longId);
+        var memories = await service.RecallAsync();
 
-        mediumMemory.Text.Is("Useful preference");
-        longMemory.Text.Is("Stable identity fact");
-        mediumMemory.Retention.Is(7.6d);
-        longMemory.Retention.Is(109.8d);
+        memories.Count.Is(1);
+        memories[0].Id.Is("a");
+        store.Document.Memories.Count.Is(1);
+        store.Document.Memories[0].Retention.Is(9.9d);
     }
 
     [Fact]
@@ -219,18 +271,7 @@ public sealed class MemoryServiceTests
             new SessionReinforcementTracker());
     }
 
-    private static async Task<string> RememberMemoryAsync(InMemoryMemoryStore store, RetentionTier retentionTier, string text)
-    {
-        var memoryCount = store.Document.Memories.Count;
-        var result = await CreateService(store).RememberAsync(retentionTier, text);
-
-        result.Succeeded.IsTrue();
-        result.Rejection.IsNull();
-
-        return store.Document.Memories[memoryCount].Id;
-    }
-
-    private sealed class InMemoryMemoryStore(PersistedMemoryDocument document) : EngramMcp.Tools.Memory.Storage.IMemoryStore
+    private sealed class InMemoryMemoryStore(PersistedMemoryDocument document) : IMemoryStore
     {
         public PersistedMemoryDocument Document { get; private set; } = document;
 
