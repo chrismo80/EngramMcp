@@ -101,6 +101,7 @@ That is the core experience: continuity shaped by relevance, not by accumulation
 | `remember_medium` | Evolving preferences, lessons learned, recurring context.                                             |
 | `remember_long` | Stable facts, durable constraints, relationship context.                                              |
 | `reinforce` | Strengthen recalled memories that materially influenced the current session.                          |
+| `forget` | Delete memories by id when they are wrong or no longer relevant.                                      |
 
 ## Example Recall Response
 

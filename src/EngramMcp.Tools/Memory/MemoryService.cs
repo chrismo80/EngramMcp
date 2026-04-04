@@ -85,6 +85,33 @@ public sealed class MemoryService(
         }
     }
 
+    public async Task<MemoryChangeResult> ForgetAsync(IReadOnlyList<string> memoryIds, CancellationToken cancellationToken = default)
+    {
+        if (memoryIds is null || memoryIds.Count == 0)
+            return MemoryChangeResult.Reject("At least one memory id is required.");
+
+        await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+
+        try
+        {
+            var document = await memoryStore.LoadAsync(cancellationToken).ConfigureAwait(false);
+
+            if (GetUnknownMemoryId(memoryIds, document.Memories) is { } unknownMemoryId)
+                return MemoryChangeResult.Reject($"Unknown memory '{unknownMemoryId}'.");
+
+            var requestedMemoryIds = memoryIds.ToHashSet(StringComparer.Ordinal);
+            var removedCount = document.Memories.RemoveAll(memory => requestedMemoryIds.Contains(memory.Id));
+            if (removedCount > 0)
+                await memoryStore.SaveAsync(document, cancellationToken).ConfigureAwait(false);
+
+            return MemoryChangeResult.Success();
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
     private bool PruneDeleteableMemories(PersistedMemoryDocument document) =>
         document.Memories.RemoveAll(memory => retentionPolicy.ShouldDelete(memory.Retention)) > 0;
 
