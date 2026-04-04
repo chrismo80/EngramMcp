@@ -96,7 +96,7 @@ That is the core experience: continuity shaped by relevance, not by accumulation
 
 | Tool | Use it for                                                                                            |
 |---|-------------------------------------------------------------------------------------------------------|
-| `recall` | Start of session. Load up to the 50 strongest current memories that are still worth carrying forward. |
+| `recall` | Start of session. By default returns up to 50 memories. You can optionally request a different count (e.g. `recall(maxCount: 200)`), and the response includes `selectedCount` and `totalCount`. |
 | `remember_short` | Recent progress, temporary working context, checkpoints, resume notes.                                |
 | `remember_medium` | Evolving preferences, lessons learned, recurring context.                                             |
 | `remember_long` | Stable facts, durable constraints, relationship context.                                              |
@@ -108,6 +108,8 @@ That is the core experience: continuity shaped by relevance, not by accumulation
 
 ```json
 {
+  "selectedCount": 2,
+  "totalCount": 2,
   "memories": [
     {
       "id": "mcvx3n9k",
