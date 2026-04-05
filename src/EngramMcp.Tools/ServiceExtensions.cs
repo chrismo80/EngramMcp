@@ -9,14 +9,15 @@ public static class ServiceExtensions
 {
     extension(IServiceCollection services)
     {
-        public IServiceCollection WithEngramMcp(string memoryFilePath) => services
-            .AddInfrastructure(memoryFilePath)
+        public IServiceCollection WithEngramMcp(string globalMemoryFilePath, string projectMemoryFilePath) => services
+            .AddInfrastructure(globalMemoryFilePath, projectMemoryFilePath)
             .AddImplementations<Tool>();
 
-        private IServiceCollection AddInfrastructure(string memoryFilePath) => services
+        private IServiceCollection AddInfrastructure(string globalMemoryFilePath, string projectMemoryFilePath) => services
             .AddSingleton<RetentionPolicy>()
             .AddSingleton<Tracker>()
-            .AddSingleton<IMemoryStore>(_ => new JsonMemoryStore(memoryFilePath))
+            .AddSingleton<GlobalJsonMemoryStore>(_ => new GlobalJsonMemoryStore(globalMemoryFilePath))
+            .AddSingleton<ProjectJsonMemoryStore>(_ => new ProjectJsonMemoryStore(projectMemoryFilePath))
             .AddSingleton<MemoryService>();
         
         private IServiceCollection AddImplementations<T>()

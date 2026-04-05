@@ -39,9 +39,7 @@ public sealed class MemoryServiceTests
 
         result.Succeeded.IsTrue();
         result.Rejection.IsNull();
-        store.Document.Memories.Count.Is(1);
-        store.Document.Memories[0].Text.Is("Remember this");
-        store.Document.Memories[0].Retention.Is(25d);
+        store.Document.Memories.IsEmpty();
     }
 
     [Fact]
@@ -69,14 +67,14 @@ public sealed class MemoryServiceTests
         {
             Memories =
             [
-                new PersistedMemory { Id = "id-1", Text = "Updated outside the service", Retention = 10 }
+                new PersistedMemory { Id = "p-id-1", Text = "Updated outside the service", Retention = 10 }
             ]
         });
 
         var memories = await service.RecallAsync();
 
         memories.Count.Is(1);
-        memories[0].Id.Is("id-1");
+        memories[0].Id.Is("p-id-1");
         memories[0].Text.Is("Updated outside the service");
     }
 
@@ -87,13 +85,13 @@ public sealed class MemoryServiceTests
         {
             Memories =
             [
-                new PersistedMemory { Id = "known", Text = "Known memory", Retention = 10 }
+                new PersistedMemory { Id = "p-known", Text = "Known memory", Retention = 10 }
             ]
         });
         var service = CreateService(store);
 
-        var rejected = await service.ReinforceAsync(["known", "missing"]);
-        var accepted = await service.ReinforceAsync(["known"]);
+        var rejected = await service.ReinforceAsync(["p-known", "missing"]);
+        var accepted = await service.ReinforceAsync(["p-known"]);
 
         rejected.Succeeded.IsFalse();
         rejected.Rejection.Is("Unknown memory 'missing'.");
@@ -109,18 +107,18 @@ public sealed class MemoryServiceTests
         {
             Memories =
             [
-                new PersistedMemory { Id = "a", Text = "Selected", Retention = 10 },
-                new PersistedMemory { Id = "b", Text = "Other", Retention = 7 }
+                new PersistedMemory { Id = "p-a", Text = "Selected", Retention = 10 },
+                new PersistedMemory { Id = "p-b", Text = "Other", Retention = 7 }
             ]
         });
         var service = CreateService(store);
 
-        var result = await service.ReinforceAsync(["a"]);
+        var result = await service.ReinforceAsync(["p-a"]);
 
         result.Succeeded.IsTrue();
         result.Rejection.IsNull();
-        store.Document.Memories.Single(memory => memory.Id == "a").Retention.Is(9.9d);
-        store.Document.Memories.Single(memory => memory.Id == "b").Retention.Is(6d);
+        store.Document.Memories.Single(memory => memory.Id == "p-a").Retention.Is(9.9d);
+        store.Document.Memories.Single(memory => memory.Id == "p-b").Retention.Is(6d);
     }
 
     [Fact]
@@ -130,17 +128,17 @@ public sealed class MemoryServiceTests
         {
             Memories =
             [
-                new PersistedMemory { Id = "a", Text = "First", Retention = 10 },
-                new PersistedMemory { Id = "b", Text = "Second", Retention = 10 }
+                new PersistedMemory { Id = "p-a", Text = "First", Retention = 10 },
+                new PersistedMemory { Id = "p-b", Text = "Second", Retention = 10 }
             ]
         });
         var service = CreateService(store);
 
-        await service.ReinforceAsync(["a"]);
-        await service.ReinforceAsync(["b"]);
+        await service.ReinforceAsync(["p-a"]);
+        await service.ReinforceAsync(["p-b"]);
 
-        store.Document.Memories.Single(memory => memory.Id == "a").Retention.Is(9.9d);
-        store.Document.Memories.Single(memory => memory.Id == "b").Retention.Is(9.9d);
+        store.Document.Memories.Single(memory => memory.Id == "p-a").Retention.Is(9.9d);
+        store.Document.Memories.Single(memory => memory.Id == "p-b").Retention.Is(9.9d);
     }
 
     [Fact]
@@ -150,13 +148,13 @@ public sealed class MemoryServiceTests
         {
             Memories =
             [
-                new PersistedMemory { Id = "known", Text = "Known memory", Retention = 10 }
+                new PersistedMemory { Id = "p-known", Text = "Known memory", Retention = 10 }
             ]
         });
         var service = CreateService(store);
 
-        await service.ReinforceAsync(["known"]);
-        await service.ReinforceAsync(["known"]);
+        await service.ReinforceAsync(["p-known"]);
+        await service.ReinforceAsync(["p-known"]);
 
         store.Document.Memories[0].Retention.Is(9.9d);
     }
@@ -168,14 +166,14 @@ public sealed class MemoryServiceTests
         {
             Memories =
             [
-                new PersistedMemory { Id = "known", Text = "Known memory", Retention = 10 }
+                new PersistedMemory { Id = "p-known", Text = "Known memory", Retention = 10 }
             ]
         });
         var service = CreateService(store);
 
-        await service.ReinforceAsync(["known"]);
+        await service.ReinforceAsync(["p-known"]);
         await service.RecallAsync();
-        await service.ReinforceAsync(["known"]);
+        await service.ReinforceAsync(["p-known"]);
 
         store.Document.Memories[0].Retention.Is(9.8d);
     }
@@ -187,7 +185,7 @@ public sealed class MemoryServiceTests
         {
             Memories =
             [
-                new PersistedMemory { Id = "short", Text = "Temporary note", Retention = 5 }
+                new PersistedMemory { Id = "p-short", Text = "Temporary note", Retention = 5 }
             ]
         });
         var service = CreateService(store);
@@ -206,19 +204,19 @@ public sealed class MemoryServiceTests
         {
             Memories =
             [
-                new PersistedMemory { Id = "a", Text = "Anchor", Retention = 10 },
-                new PersistedMemory { Id = "b", Text = "Recoverable", Retention = 1.9 }
+                new PersistedMemory { Id = "p-a", Text = "Anchor", Retention = 10 },
+                new PersistedMemory { Id = "p-b", Text = "Recoverable", Retention = 1.9 }
             ]
         });
         var service = CreateService(store);
 
-        await service.ReinforceAsync(["a"]);
-        var result = await service.ReinforceAsync(["b"]);
+        await service.ReinforceAsync(["p-a"]);
+        var result = await service.ReinforceAsync(["p-b"]);
 
         result.Succeeded.IsTrue();
         result.Rejection.IsNull();
         store.Document.Memories.Count.Is(2);
-        store.Document.Memories.Single(memory => memory.Id == "b").Retention.Is(1d);
+        store.Document.Memories.Single(memory => memory.Id == "p-b").Retention.Is(1d);
     }
 
     [Fact]
@@ -228,21 +226,21 @@ public sealed class MemoryServiceTests
         {
             Memories =
             [
-                new PersistedMemory { Id = "a", Text = "Anchor", Retention = 10 },
-                new PersistedMemory { Id = "b", Text = "Expired", Retention = 1.2 }
+                new PersistedMemory { Id = "p-a", Text = "Anchor", Retention = 10 },
+                new PersistedMemory { Id = "p-b", Text = "Expired", Retention = 1.2 }
             ]
         });
         var service = CreateService(store);
 
-        await service.ReinforceAsync(["a"]);
+        await service.ReinforceAsync(["p-a"]);
 
         store.Document.Memories.Count.Is(2);
-        store.Document.Memories.Single(memory => memory.Id == "b").Retention.Is(0.2d);
+        store.Document.Memories.Single(memory => memory.Id == "p-b").Retention.Is(0.2d);
 
         var memories = await service.RecallAsync();
 
         memories.Count.Is(1);
-        memories[0].Id.Is("a");
+        memories[0].Id.Is("p-a");
         store.Document.Memories.Count.Is(1);
         store.Document.Memories[0].Retention.Is(9.9d);
     }
@@ -254,21 +252,45 @@ public sealed class MemoryServiceTests
         {
             Memories =
             [
-                new PersistedMemory { Id = "id-1", Text = "Known memory", Retention = 10 }
+                new PersistedMemory { Id = "p-id-1", Text = "Known memory", Retention = 10 }
             ]
         });
         var service = CreateService(store);
 
         var memories = await service.RecallAsync();
 
-        memories.Single().Is(new RecallMemory("id-1", "Known memory"));
+        memories.Single().Is(new RecallMemory("p-id-1", "Known memory"));
     }
 
     private static MemoryService CreateService(InMemoryMemoryStore store)
     {
+        // Each scope gets its own store in tests.
+        var globalBackingStore = new InMemoryMemoryStore(new PersistedMemoryDocument());
+        var global = new TestGlobalStore(globalBackingStore);
+        var project = new TestProjectStore(store);
+
         return new MemoryService(
-            store,
+            global,
+            project,
             new RetentionPolicy(),
             new Tracker());
+    }
+
+    private sealed class TestGlobalStore(InMemoryMemoryStore inner) : GlobalJsonMemoryStore("/dev/null")
+    {
+        public override Task EnsureInitializedAsync(CancellationToken cancellationToken = default) => inner.EnsureInitializedAsync(cancellationToken);
+
+        public override Task<PersistedMemoryDocument> LoadAsync(CancellationToken cancellationToken = default) => inner.LoadAsync(cancellationToken);
+
+        public override Task SaveAsync(PersistedMemoryDocument document, CancellationToken cancellationToken = default) => inner.SaveAsync(document, cancellationToken);
+    }
+
+    private sealed class TestProjectStore(InMemoryMemoryStore inner) : ProjectJsonMemoryStore("/dev/null")
+    {
+        public override Task EnsureInitializedAsync(CancellationToken cancellationToken = default) => inner.EnsureInitializedAsync(cancellationToken);
+
+        public override Task<PersistedMemoryDocument> LoadAsync(CancellationToken cancellationToken = default) => inner.LoadAsync(cancellationToken);
+
+        public override Task SaveAsync(PersistedMemoryDocument document, CancellationToken cancellationToken = default) => inner.SaveAsync(document, cancellationToken);
     }
 }

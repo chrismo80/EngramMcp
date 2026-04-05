@@ -14,16 +14,16 @@ public sealed class ReinforceToolTests : ToolTests<ReinforceTool>
         {
             Memories =
             [
-                new PersistedMemory { Id = "id-1", Text = "First memory", Retention = 10 },
-                new PersistedMemory { Id = "id-2", Text = "Second memory", Retention = 10 }
+                new PersistedMemory { Id = "p-id-1", Text = "First memory", Retention = 10 },
+                new PersistedMemory { Id = "p-id-2", Text = "Second memory", Retention = 10 }
             ]
         });
 
-        var response = await Sut.ExecuteAsync(["id-1", "id-2"]);
+        var response = await Sut.ExecuteAsync(["p-id-1", "p-id-2"]);
 
         response.IsNull();
-        Store.Document.Memories.Single(memory => memory.Id == "id-1").Retention.Is(9.9d);
-        Store.Document.Memories.Single(memory => memory.Id == "id-2").Retention.Is(9.9d);
+        Store.Document.Memories.Single(memory => memory.Id == "p-id-1").Retention.Is(9.9d);
+        Store.Document.Memories.Single(memory => memory.Id == "p-id-2").Retention.Is(9.9d);
     }
 
     [Fact]

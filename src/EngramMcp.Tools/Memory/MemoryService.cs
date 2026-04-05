@@ -3,7 +3,8 @@ using EngramMcp.Tools.Memory.Storage;
 namespace EngramMcp.Tools.Memory;
 
 public sealed class MemoryService(
-    IMemoryStore memoryStore,
+    GlobalJsonMemoryStore globalStore,
+    ProjectJsonMemoryStore projectStore,
     RetentionPolicy retentionPolicy,
     Tracker tracker)
 {
@@ -15,13 +16,17 @@ public sealed class MemoryService(
 
         try
         {
-            var document = await memoryStore.LoadAsync(cancellationToken).ConfigureAwait(false);
+            var globalDocument = await globalStore.LoadAsync(cancellationToken).ConfigureAwait(false);
+            var projectDocument = await projectStore.LoadAsync(cancellationToken).ConfigureAwait(false);
 
-            if (PruneDeleteableMemories(document))
-                await memoryStore.SaveAsync(document, cancellationToken).ConfigureAwait(false);
+            if (PruneDeleteableMemories(globalDocument))
+                await globalStore.SaveAsync(globalDocument, cancellationToken).ConfigureAwait(false);
+
+            if (PruneDeleteableMemories(projectDocument))
+                await projectStore.SaveAsync(projectDocument, cancellationToken).ConfigureAwait(false);
 
             tracker.Reset();
-            return RecallMemories(document);
+            return RecallMemories(globalDocument, projectDocument);
         }
         finally
         {
@@ -38,17 +43,20 @@ public sealed class MemoryService(
 
         try
         {
-            var document = await memoryStore.LoadAsync(cancellationToken).ConfigureAwait(false);
+            IMemoryStore store = retentionTier == RetentionTier.Short ? projectStore : globalStore;
+            var scopePrefix = retentionTier == RetentionTier.Short ? "p-" : "g-";
+
+            var document = await store.LoadAsync(cancellationToken).ConfigureAwait(false);
             var memory = new PersistedMemory
             {
-                Id = IdGenerator.GetUniqueId(),
+                Id = scopePrefix + IdGenerator.GetUniqueId(),
                 Text = text,
                 Retention = retentionPolicy.CreateInitialRetention(retentionTier)
             };
 
             document.Memories.Add(memory);
 
-            await memoryStore.SaveAsync(document, cancellationToken).ConfigureAwait(false);
+            await store.SaveAsync(document, cancellationToken).ConfigureAwait(false);
             return MemoryChangeResult.Success();
         }
         finally
@@ -66,16 +74,32 @@ public sealed class MemoryService(
 
         try
         {
-            var document = await memoryStore.LoadAsync(cancellationToken).ConfigureAwait(false);
+            var globalDocument = await globalStore.LoadAsync(cancellationToken).ConfigureAwait(false);
+            var projectDocument = await projectStore.LoadAsync(cancellationToken).ConfigureAwait(false);
 
-            if (GetUnknownMemoryId(memoryIds, document.Memories) is { } unknownMemoryId)
+            if (GetUnknownMemoryId(memoryIds, globalDocument.Memories, projectDocument.Memories) is { } unknownMemoryId)
                 return MemoryChangeResult.Reject($"Unknown memory '{unknownMemoryId}'.");
 
-            var changedRetention = ApplyGlobalWeakeningIfFirstTime(document);
-            changedRetention |= ReinforceMemories(document, memoryIds);
+            // Decay should happen once per reinforcement cycle across all scopes.
+            // Decay once per cycle, across all scopes.
+            var changedGlobalRetention = false;
+            var changedProjectRetention = false;
 
-            if (changedRetention)
-                await memoryStore.SaveAsync(document, cancellationToken).ConfigureAwait(false);
+            if (tracker.Decayed())
+            {
+                changedGlobalRetention |= ApplyDecay(globalDocument);
+                changedProjectRetention |= ApplyDecay(projectDocument);
+            }
+
+            // Reinforcement should apply even when decay already happened for this cycle.
+            changedGlobalRetention |= ReinforceMemories(globalDocument, memoryIds);
+            changedProjectRetention |= ReinforceMemories(projectDocument, memoryIds);
+
+            if (changedGlobalRetention)
+                await globalStore.SaveAsync(globalDocument, cancellationToken).ConfigureAwait(false);
+
+            if (changedProjectRetention)
+                await projectStore.SaveAsync(projectDocument, cancellationToken).ConfigureAwait(false);
 
             return MemoryChangeResult.Success();
         }
@@ -94,15 +118,22 @@ public sealed class MemoryService(
 
         try
         {
-            var document = await memoryStore.LoadAsync(cancellationToken).ConfigureAwait(false);
+            var requestedMemoryIds = memoryIds.ToHashSet(StringComparer.Ordinal);
 
-            if (GetUnknownMemoryId(memoryIds, document.Memories) is { } unknownMemoryId)
+            var globalDocument = await globalStore.LoadAsync(cancellationToken).ConfigureAwait(false);
+            var projectDocument = await projectStore.LoadAsync(cancellationToken).ConfigureAwait(false);
+
+            if (GetUnknownMemoryId(memoryIds, globalDocument.Memories, projectDocument.Memories) is { } unknownMemoryId)
                 return MemoryChangeResult.Reject($"Unknown memory '{unknownMemoryId}'.");
 
-            var requestedMemoryIds = memoryIds.ToHashSet(StringComparer.Ordinal);
-            var removedCount = document.Memories.RemoveAll(memory => requestedMemoryIds.Contains(memory.Id));
-            if (removedCount > 0)
-                await memoryStore.SaveAsync(document, cancellationToken).ConfigureAwait(false);
+            var removedGlobalCount = globalDocument.Memories.RemoveAll(memory => requestedMemoryIds.Contains(memory.Id));
+            var removedProjectCount = projectDocument.Memories.RemoveAll(memory => requestedMemoryIds.Contains(memory.Id));
+
+            if (removedGlobalCount > 0)
+                await globalStore.SaveAsync(globalDocument, cancellationToken).ConfigureAwait(false);
+
+            if (removedProjectCount > 0)
+                await projectStore.SaveAsync(projectDocument, cancellationToken).ConfigureAwait(false);
 
             return MemoryChangeResult.Success();
         }
@@ -115,15 +146,20 @@ public sealed class MemoryService(
     private bool PruneDeleteableMemories(PersistedMemoryDocument document) =>
         document.Memories.RemoveAll(memory => retentionPolicy.ShouldDelete(memory.Retention)) > 0;
 
-    private IReadOnlyList<RecallMemory> RecallMemories(PersistedMemoryDocument document) =>
-        document.Memories
+    private IReadOnlyList<RecallMemory> RecallMemories(PersistedMemoryDocument globalDocument, PersistedMemoryDocument projectDocument) =>
+        globalDocument.Memories
+            .Concat(projectDocument.Memories)
             .OrderByDescending(memory => memory.Retention)
             .Select(memory => new RecallMemory(memory.Id, memory.Text))
             .ToArray();
 
-    private static string? GetUnknownMemoryId(IReadOnlyList<string> memoryIds, IReadOnlyList<PersistedMemory> memories)
+    private static string? GetUnknownMemoryId(
+        IReadOnlyList<string> memoryIds,
+        IReadOnlyList<PersistedMemory> globalMemories,
+        IReadOnlyList<PersistedMemory> projectMemories)
     {
-        var knownMemoryIds = memories
+        var knownMemoryIds = globalMemories
+            .Concat(projectMemories)
             .Select(memory => memory.Id)
             .ToHashSet(StringComparer.Ordinal);
 
@@ -138,9 +174,16 @@ public sealed class MemoryService(
 
     private bool ApplyGlobalWeakeningIfFirstTime(PersistedMemoryDocument document)
     {
+        // Backwards-compatible helper used by older tests/flows.
+        // (Kept for now; decay behavior is coordinated per-cycle in ReinforceAsync.)
         if (!tracker.Decayed())
             return false;
 
+        return ApplyDecay(document);
+    }
+
+    private bool ApplyDecay(PersistedMemoryDocument document)
+    {
         for (var index = 0; index < document.Memories.Count; index++)
         {
             var memory = document.Memories[index];

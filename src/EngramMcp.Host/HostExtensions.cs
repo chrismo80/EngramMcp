@@ -19,7 +19,7 @@ public static class HostExtensions
     {
         public void Compose(MemoryFileOptions options) => services
             .AddSingleton(options)
-            .WithEngramMcp(options.FilePath)
+            .WithEngramMcp(options.GlobalFilePath, options.ProjectFilePath)
             .AddMcpRuntime();
 
         private void AddMcpRuntime()

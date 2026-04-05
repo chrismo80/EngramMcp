@@ -13,7 +13,8 @@ public sealed class McpServerHostTests
 
         var options = McpServerHost.ParseOptions([], startupDirectory);
 
-        options.FilePath.Is(Path.Combine(startupDirectory, ".engram", "memory.json"));
+        options.ProjectFilePath.Is(Path.Combine(startupDirectory, ".engram", "memory.json"));
+        options.GlobalFilePath.Is(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".engram", "global.json"));
     }
 
     [Fact]
@@ -23,7 +24,8 @@ public sealed class McpServerHostTests
 
         var options = McpServerHost.ParseOptions(["--file", filePath], "/workspace");
 
-        options.FilePath.Is(filePath);
+        options.GlobalFilePath.Is(filePath);
+        options.ProjectFilePath.Is(Path.Combine("/workspace", ".engram", "memory.json"));
     }
 
     [Fact]

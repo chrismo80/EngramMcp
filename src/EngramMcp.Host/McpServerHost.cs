@@ -22,7 +22,7 @@ public static class McpServerHost
         ArgumentNullException.ThrowIfNull(args);
         ArgumentException.ThrowIfNullOrWhiteSpace(startupDirectory);
 
-        string? filePath = null;
+        string? globalFilePath = null;
         for (var index = 0; index < args.Length; index++)
         {
             var argument = args[index];
@@ -30,15 +30,15 @@ public static class McpServerHost
             switch (argument)
             {
                 case "--file":
-                    if (filePath is not null)
+                    if (globalFilePath is not null)
                         throw new ArgumentException("The '--file' option may only be specified once.", nameof(args));
 
                     if (index + 1 >= args.Length)
                         throw new ArgumentException("Missing value for '--file'. Expected '--file <path>'.", nameof(args));
 
-                    filePath = args[++index];
+                    globalFilePath = args[++index];
 
-                    if (string.IsNullOrWhiteSpace(filePath))
+                    if (string.IsNullOrWhiteSpace(globalFilePath))
                         throw new ArgumentException("The '--file' value must not be empty or whitespace.", nameof(args));
 
                     break;
@@ -48,11 +48,16 @@ public static class McpServerHost
             }
         }
 
-        filePath ??= Path.Combine(startupDirectory, ".engram", "memory.json");
+        // Project scope always defaults to the current working directory.
+        var projectFilePath = Path.Combine(startupDirectory, ".engram", "memory.json");
+
+        // Global scope is configured via --file, otherwise defaults to the user profile.
+        globalFilePath ??= Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".engram", "global.json");
 
         return new MemoryFileOptions
         {
-            FilePath = filePath
+            GlobalFilePath = globalFilePath,
+            ProjectFilePath = projectFilePath
         };
     }
 }

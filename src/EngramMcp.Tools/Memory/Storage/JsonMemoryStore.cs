@@ -3,7 +3,7 @@ using System.Text.Json;
 
 namespace EngramMcp.Tools.Memory.Storage;
 
-public sealed class JsonMemoryStore(string filePath) : IMemoryStore
+public class JsonMemoryStore(string filePath) : IMemoryStore
 {
     private static readonly JsonSerializerOptions SerializerOptions = new()
     {
@@ -15,13 +15,13 @@ public sealed class JsonMemoryStore(string filePath) : IMemoryStore
     private readonly string _filePath = ResolvePath(filePath);
     private readonly SemaphoreSlim _gate = new(1, 1);
 
-    public Task EnsureInitializedAsync(CancellationToken cancellationToken = default) =>
+    public virtual Task EnsureInitializedAsync(CancellationToken cancellationToken = default) =>
         ExecuteExclusiveAsync(EnsureInitializedCoreAsync, cancellationToken);
 
-    public Task<PersistedMemoryDocument> LoadAsync(CancellationToken cancellationToken = default) =>
+    public virtual Task<PersistedMemoryDocument> LoadAsync(CancellationToken cancellationToken = default) =>
         ExecuteExclusiveAsync(LoadCoreAsync, cancellationToken);
 
-    public Task SaveAsync(PersistedMemoryDocument document, CancellationToken cancellationToken = default)
+    public virtual Task SaveAsync(PersistedMemoryDocument document, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(document);
 
