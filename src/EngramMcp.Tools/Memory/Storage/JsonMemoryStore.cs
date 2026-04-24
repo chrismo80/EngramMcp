@@ -97,7 +97,22 @@ public sealed class JsonMemoryStore(string filePath) : IMemoryStore
                 Directory.CreateDirectory(directoryPath);
 
             var json = JsonSerializer.Serialize(document, SerializerOptions);
-            await File.WriteAllTextAsync(_filePath, json, cancellationToken).ConfigureAwait(false);
+
+            // Avoid partially-written JSON on crash/kill: write temp file next to destination, then move into place.
+            var tmpFilePath = Path.Combine(
+                directoryPath ?? string.Empty,
+                $"{Path.GetFileName(_filePath)}.{Guid.NewGuid():N}.tmp");
+
+            try
+            {
+                await File.WriteAllTextAsync(tmpFilePath, json, cancellationToken).ConfigureAwait(false);
+                File.Move(tmpFilePath, _filePath, overwrite: true);
+            }
+            finally
+            {
+                if (File.Exists(tmpFilePath))
+                    File.Delete(tmpFilePath);
+            }
         }
         catch (UnauthorizedAccessException exception)
         {
