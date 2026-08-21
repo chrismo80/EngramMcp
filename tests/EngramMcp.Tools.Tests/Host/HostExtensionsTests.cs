@@ -48,4 +48,35 @@ public sealed class HostExtensionsTests
         using var serviceProvider = services.BuildServiceProvider();
         serviceProvider.GetRequiredService<EngramMcp.Tools.Memory.Storage.IMemoryStore>().Is<JsonlMemoryStore>();
     }
+
+    [Fact]
+    public void Compose_RegistersMemoryResourceOnMcpServer()
+    {
+        var services = new ServiceCollection();
+
+        services.Compose(new MemoryFileOptions { FilePath = "memory.jsonl" });
+
+        using var serviceProvider = services.BuildServiceProvider();
+        var resourceCollection = serviceProvider.GetRequiredService<IOptions<McpServerOptions>>().Value.ResourceCollection;
+
+        resourceCollection.IsNotNull();
+
+        var found = resourceCollection!.TryGetPrimitive("memory://recall", out var resource);
+
+        found.IsTrue();
+        resource!.ProtocolResource!.Uri.Is("memory://recall");
+    }
+
+    [Fact]
+    public void Compose_KeepsRecallToolRegistered()
+    {
+        var services = new ServiceCollection();
+
+        services.Compose(new MemoryFileOptions { FilePath = "memory.jsonl" });
+
+        using var serviceProvider = services.BuildServiceProvider();
+        var toolCollection = serviceProvider.GetRequiredService<IOptions<McpServerOptions>>().Value.ToolCollection;
+
+        toolCollection.TryGetPrimitive("recall", out _).IsTrue();
+    }
 }

@@ -43,6 +43,7 @@ public static class HostExtensions
 
             builder.WithStdioServerTransport();
             builder.WithTools(ServiceExtensions.GetTools(), serializerOptions);
+            builder.WithResources(ServiceExtensions.GetResources());
         }
     }
 }

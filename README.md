@@ -132,6 +132,21 @@ That is the core experience: continuity shaped by relevance, not by accumulation
 Treat memory ids as opaque values.
 They are only meant to be passed back to `reinforce` or `forget`.
 
+## Recall as a Resource
+
+In addition to the `recall` tool, memory is exposed as an MCP resource:
+
+| Resource | URI | MIME type |
+|---|---|---|
+| Recall | `memory://recall` | `application/json` |
+
+Reading `memory://recall` returns exactly what the `recall` tool returns — the strongest current memories in the same `{ "memories": [ { "id", "text" } ] }` shape.
+Hosts that support resources can inject it at the start of a session on their own, so the agent does not have to remember to call `recall` first.
+The `recall` tool stays available as a fallback for hosts that do not consume resources.
+
+Because it does exactly what the tool does, **reading the resource carries the same side effects**: it prunes obsolete memories and advances the retention lifecycle.
+So the effective pace of decay follows how often the host reads the resource, not how many sessions have passed.
+
 ## Prompting Matters
 
 These tools work best when the system prompt teaches the agent how to use them well.
